@@ -67,10 +67,16 @@ const navItems = [
 ]
 
 export default function Page() {
+  const [mounted, setMounted] = useState(false)
+
   // Navigation
   const [activeTab, setActiveTab] = useState<string>('inputs')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [isDataModalOpen, setIsDataModalOpen] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Datasets & Config state
   const [selectedPresetType, setSelectedPresetType] = useState<'mst' | 'end_sem' | 'quiz'>('mst')
@@ -431,19 +437,28 @@ export default function Page() {
         <main className="mx-auto max-w-[1600px] p-5 md:p-8">
           {/* TAB 0: ALL-IN-ONE INPUTS VIEW */}
           {activeTab === 'inputs' && (
-            <InputsManagementView
-              students={students}
-              setStudents={setStudents}
-              courses={courses}
-              setCourses={setCourses}
-              rooms={rooms}
-              setRooms={setRooms}
-              teachers={teachers}
-              setTeachers={setTeachers}
-              config={config}
-              setConfig={setConfig}
-              onSaveAndRerun={handleRunSolver}
-            />
+            mounted ? (
+              <InputsManagementView
+                students={students}
+                setStudents={setStudents}
+                courses={courses}
+                setCourses={setCourses}
+                rooms={rooms}
+                setRooms={setRooms}
+                teachers={teachers}
+                setTeachers={setTeachers}
+                config={config}
+                setConfig={setConfig}
+                onSaveAndRerun={handleRunSolver}
+              />
+            ) : (
+              <div className="flex min-h-[400px] items-center justify-center">
+                <div className="flex items-center gap-3 text-slate-500 text-sm">
+                  <div className="size-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  Loading inputs management...
+                </div>
+              </div>
+            )
           )}
 
           {/* TAB 1: OVERVIEW DASHBOARD */}
