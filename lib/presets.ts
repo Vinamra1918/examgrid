@@ -242,36 +242,36 @@ export const defaultRooms: Room[] = [
 
 // Faculty / Invigilators with Priority Ranks (Complete 25 Department Faculty Roster)
 export const defaultTeachers: Teacher[] = [
-  // Professors & Leadership
+  // Professors & Leadership (Priority 1: Senior Leadership)
   { id: 't1', name: 'Dr. Urjita Thakar', designation: 'Professor & Head', department: 'CSE', priority: 1, maxDuties: 4, included: true },
   { id: 't2', name: 'Dr. D. A. Mehta', designation: 'Professor', department: 'CSE', priority: 1, maxDuties: 4, included: true },
   { id: 't3', name: 'Prof. Vandan Tewari', designation: 'Professor', department: 'CSE', priority: 1, maxDuties: 4, included: true },
   { id: 't4', name: 'Dr. Anuradha Purohit', designation: 'Professor', department: 'CSE', priority: 1, maxDuties: 4, included: true },
 
-  // Associate Professors / Senior Faculty
-  { id: 't5', name: 'Mr. Surendra Gupta', designation: 'Associate Professor', department: 'CSE', priority: 1, maxDuties: 6, included: true },
-  { id: 't6', name: 'Mr. Rajesh Dhakad', designation: 'Associate Professor', department: 'CSE', priority: 1, maxDuties: 6, included: true },
+  // Associate Professors / Senior Faculty (Priority 2: Senior Faculty)
+  { id: 't5', name: 'Mr. Surendra Gupta', designation: 'Associate Professor', department: 'CSE', priority: 2, maxDuties: 6, included: true },
+  { id: 't6', name: 'Mr. Rajesh Dhakad', designation: 'Associate Professor', department: 'CSE', priority: 2, maxDuties: 6, included: true },
 
-  // Assistant Professors & Faculty Members
-  { id: 't7', name: 'Dr. Barkha Sahu', designation: 'Assistant Professor', department: 'CSE', priority: 1, maxDuties: 6, included: true },
-  { id: 't8', name: 'Mr. Chandresh Tatawat', designation: 'Assistant Professor', department: 'CSE', priority: 1, maxDuties: 6, included: true },
-  { id: 't9', name: 'Mr. Ranjeet Vishwakarma', designation: 'Assistant Professor', department: 'CSE', priority: 1, maxDuties: 6, included: true },
-  { id: 't10', name: 'Ms. Ashwini Pahade', designation: 'Assistant Professor', department: 'CSE', priority: 1, maxDuties: 6, included: true },
-  { id: 't11', name: 'Ms. Ashwini Sharma', designation: 'Assistant Professor', department: 'CSE', priority: 1, maxDuties: 6, included: true },
-  { id: 't12', name: 'Ms. Chetali Neema', designation: 'Assistant Professor', department: 'CSE', priority: 1, maxDuties: 6, included: true },
-  { id: 't13', name: 'Ms. Diksha Tatawat', designation: 'Assistant Professor', department: 'CSE', priority: 1, maxDuties: 6, included: true },
-  { id: 't14', name: 'Ms. Himani Mishra', designation: 'Assistant Professor', department: 'CSE', priority: 1, maxDuties: 6, included: true },
-  { id: 't15', name: 'Ms. Jyoti Chouhan', designation: 'Assistant Professor', department: 'CSE', priority: 1, maxDuties: 6, included: true },
-  { id: 't16', name: 'Ms. Kavita Mulchandani', designation: 'Assistant Professor', department: 'CSE', priority: 1, maxDuties: 6, included: true },
-  { id: 't17', name: 'Ms. Labdhi Jain', designation: 'Assistant Professor', department: 'CSE', priority: 1, maxDuties: 6, included: true },
-  { id: 't18', name: 'Ms. Mamta Gupta', designation: 'Assistant Professor', department: 'CSE', priority: 1, maxDuties: 6, included: true },
-  { id: 't19', name: 'Ms. Meghna Chandel', designation: 'Assistant Professor', department: 'CSE', priority: 1, maxDuties: 6, included: true },
-  { id: 't20', name: 'Ms. Neha Mehra', designation: 'Assistant Professor', department: 'CSE', priority: 1, maxDuties: 6, included: true },
-  { id: 't21', name: 'Ms. Priyanka Bamne', designation: 'Assistant Professor', department: 'CSE', priority: 1, maxDuties: 6, included: true },
-  { id: 't22', name: 'Ms. Ritambhara Patidar', designation: 'Assistant Professor', department: 'CSE', priority: 1, maxDuties: 6, included: true },
-  { id: 't23', name: 'Ms. Shrena Tiwari', designation: 'Assistant Professor', department: 'CSE', priority: 1, maxDuties: 6, included: true },
-  { id: 't24', name: 'Ms. Swati Mishra', designation: 'Assistant Professor', department: 'CSE', priority: 1, maxDuties: 6, included: true },
-  { id: 't25', name: 'Ms. Teena Dubey', designation: 'Assistant Professor', department: 'CSE', priority: 1, maxDuties: 6, included: true },
+  // Assistant Professors & Faculty Members (Priority 3: Assistant Professors)
+  { id: 't7', name: 'Dr. Barkha Sahu', designation: 'Assistant Professor', department: 'CSE', priority: 3, maxDuties: 6, included: true },
+  { id: 't8', name: 'Mr. Chandresh Tatawat', designation: 'Assistant Professor', department: 'CSE', priority: 3, maxDuties: 6, included: true },
+  { id: 't9', name: 'Mr. Ranjeet Vishwakarma', designation: 'Assistant Professor', department: 'CSE', priority: 3, maxDuties: 6, included: true },
+  { id: 't10', name: 'Ms. Ashwini Pahade', designation: 'Assistant Professor', department: 'CSE', priority: 3, maxDuties: 6, included: true },
+  { id: 't11', name: 'Ms. Ashwini Sharma', designation: 'Assistant Professor', department: 'CSE', priority: 3, maxDuties: 6, included: true },
+  { id: 't12', name: 'Ms. Chetali Neema', designation: 'Assistant Professor', department: 'CSE', priority: 3, maxDuties: 6, included: true },
+  { id: 't13', name: 'Ms. Diksha Tatawat', designation: 'Assistant Professor', department: 'CSE', priority: 3, maxDuties: 6, included: true },
+  { id: 't14', name: 'Ms. Himani Mishra', designation: 'Assistant Professor', department: 'CSE', priority: 3, maxDuties: 6, included: true },
+  { id: 't15', name: 'Ms. Jyoti Chouhan', designation: 'Assistant Professor', department: 'CSE', priority: 3, maxDuties: 6, included: true },
+  { id: 't16', name: 'Ms. Kavita Mulchandani', designation: 'Assistant Professor', department: 'CSE', priority: 3, maxDuties: 6, included: true },
+  { id: 't17', name: 'Ms. Labdhi Jain', designation: 'Assistant Professor', department: 'CSE', priority: 3, maxDuties: 6, included: true },
+  { id: 't18', name: 'Ms. Mamta Gupta', designation: 'Assistant Professor', department: 'CSE', priority: 3, maxDuties: 6, included: true },
+  { id: 't19', name: 'Ms. Meghna Chandel', designation: 'Assistant Professor', department: 'CSE', priority: 3, maxDuties: 6, included: true },
+  { id: 't20', name: 'Ms. Neha Mehra', designation: 'Assistant Professor', department: 'CSE', priority: 3, maxDuties: 6, included: true },
+  { id: 't21', name: 'Ms. Priyanka Bamne', designation: 'Assistant Professor', department: 'CSE', priority: 3, maxDuties: 6, included: true },
+  { id: 't22', name: 'Ms. Ritambhara Patidar', designation: 'Assistant Professor', department: 'CSE', priority: 3, maxDuties: 6, included: true },
+  { id: 't23', name: 'Ms. Shrena Tiwari', designation: 'Assistant Professor', department: 'CSE', priority: 3, maxDuties: 6, included: true },
+  { id: 't24', name: 'Ms. Swati Mishra', designation: 'Assistant Professor', department: 'CSE', priority: 3, maxDuties: 6, included: true },
+  { id: 't25', name: 'Ms. Teena Dubey', designation: 'Assistant Professor', department: 'CSE', priority: 3, maxDuties: 6, included: true },
 ]
 
 // Default Preset Configurations for MST and Quiz Exam Types

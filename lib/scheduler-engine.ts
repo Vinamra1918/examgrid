@@ -28,21 +28,24 @@ export function generateSchedule(
   const activeTeachersPool = teachers.filter((t) => t.included !== false)
 
   // 1. Filter courses strictly based on Exam Type (MST = Theory, Quiz = Lab Evaluations)
+  // DEF-05: Ensure "lab" substring inside normal words (like "Collaborative") does not falsely classify course as lab.
+  // We check for whole word \blab\b or codes ending in -LAB / starting with LAB.
+  const isLabCourse = (c: Course): boolean => {
+    if (c.type === 'lab_quiz') return true
+    const codeUpper = (c.code || '').toUpperCase()
+    const nameLower = (c.name || '').toLowerCase()
+    if (codeUpper.includes('-LAB') || codeUpper.startsWith('LAB') || codeUpper.endsWith('LAB')) return true
+    if (/\blab\b/i.test(nameLower) || /\blaboratory\b/i.test(nameLower) || /\bworkshop\b/i.test(nameLower)) return true
+    return false
+  }
+
   const targetCourses = activeCoursesPool.filter((c) => {
     if (config.examType === 'quiz') {
       // Quiz mode generates strictly Lab Quizzes / Lab Evaluations
-      return (
-        c.type === 'lab_quiz' ||
-        c.name.toLowerCase().includes('lab') ||
-        c.code.toLowerCase().includes('lab')
-      )
+      return isLabCourse(c)
     }
     // MST mode generates strictly Theory Mid-Semester Tests (excluding labs)
-    return (
-      c.type === 'theory' &&
-      !c.name.toLowerCase().includes('lab') &&
-      !c.code.toLowerCase().includes('lab')
-    )
+    return c.type === 'theory' && !isLabCourse(c)
   })
 
   // Calculate student enrollment lists for each course
@@ -65,12 +68,26 @@ export function generateSchedule(
   // If no specific lab rooms found for quiz, use classrooms
   const usableRooms = activeRooms.length > 0 ? activeRooms : activeRoomsPool
 
+  // Calculate maximum total student capacity across usable rooms in a single slot
+  // In interleaved 2-exam mode, effective capacity accounts for room total benches and capacity
+  const maxRoomCapacityPerSlot = usableRooms.reduce((sum, r) => sum + (r.totalBenches || 0) * (r.benchCapacity || 1), 0)
+
   // 3. Compute active exam dates between startDate and endDate, excluding holidays and Sundays
+  // DEF-07: Use local year/month/day parsing rather than new Date('YYYY-MM-DD') which parses as UTC and shifts a day in negative UTC offsets (e.g. US timezones).
+  const parseLocalDate = (dateStr: string): Date => {
+    if (!dateStr) return new Date()
+    const parts = dateStr.split('-').map(Number)
+    if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+      return new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0, 0)
+    }
+    return new Date(dateStr)
+  }
+
   const holidaysSet = new Set(config.holidays || [])
   const examDates: { dayNumber: number; dateStr: string; dateObj: Date }[] = []
 
-  const startD = new Date(config.startDate || '2025-05-12')
-  const endD = new Date(config.endDate || config.startDate || '2025-05-16')
+  const startD = parseLocalDate(config.startDate || '2025-05-12')
+  const endD = parseLocalDate(config.endDate || config.startDate || '2025-05-16')
 
   // If end date is before start date, ensure at least start date
   if (endD < startD) {
@@ -280,6 +297,7 @@ export function generateSchedule(
 
       // Strict Rule: At any one time, ONE SEMESTER can only have AT MOST ONE exam scheduled.
       // Different semesters of the same year (e.g. 2nd Year Sem 3 & Sem 4, or Section A & Section B) CAN run at the same time.
+      // DEF-02: Also verify that adding this course will not exceed the total seating capacity of all usable rooms in this slot.
       for (const year of yearsList) {
         const q = remainingCourseQueues.get(year) || []
         if (q.length === 0) continue
@@ -294,8 +312,18 @@ export function generateSchedule(
             (c) => (c.semester || '') === candidateSem && candidateSem !== ''
           )
 
-          if (!sameSemesterConflict) {
-            // No semester conflict: Section A & Section B or different semesters can run simultaneously
+          // Calculate current enrolled students already placed in this slot
+          const currentEnrolledInSlot = currentCoursesInSlot.reduce(
+            (sum, c) => sum + (courseEnrollments.get(c.code) || []).length,
+            0
+          )
+          const candidateEnrolled = (courseEnrollments.get(candidate.code) || []).length
+
+          // In interleaved seating mode, capacity is constrained by room seats
+          const exceedsCapacity = currentEnrolledInSlot > 0 && (currentEnrolledInSlot + candidateEnrolled > maxRoomCapacityPerSlot)
+
+          if (!sameSemesterConflict && !exceedsCapacity) {
+            // No semester conflict and room capacity allows: place course in this slot
             const [selectedCourse] = q.splice(i, 1)
             currentCoursesInSlot.push(selectedCourse)
           } else {
@@ -304,6 +332,51 @@ export function generateSchedule(
         }
       }
       dayGrid.set(sIdx, currentCoursesInSlot)
+    }
+  }
+
+  // Fallback Pass: If any courses remain in queues (due to strict capacity capping), schedule them into least loaded slots
+  for (const year of yearsList) {
+    const q = remainingCourseQueues.get(year) || []
+    while (q.length > 0) {
+      const candidate = q.shift()!
+      const candidateSem = candidate.semester || ''
+
+      // Find slot with no semester conflict and lowest total enrolled count
+      let bestDay = -1
+      let bestSlot = -1
+      let minEnrolled = Infinity
+
+      for (const dateItem of examDates) {
+        const dNum = dateItem.dayNumber
+        const daySlots = (config.daySpecificSlots && config.daySpecificSlots[dNum]) || config.slotsPerDay || []
+        const dayGrid = timetableGrid.get(dNum)!
+
+        for (let sIdx = 0; sIdx < daySlots.length; sIdx++) {
+          const coursesInSlot = dayGrid.get(sIdx) || []
+          const sameSemesterConflict = coursesInSlot.some(
+            (c) => (c.semester || '') === candidateSem && candidateSem !== ''
+          )
+          if (!sameSemesterConflict) {
+            const totalEnrolled = coursesInSlot.reduce(
+              (sum, c) => sum + (courseEnrollments.get(c.code) || []).length,
+              0
+            )
+            if (totalEnrolled < minEnrolled) {
+              minEnrolled = totalEnrolled
+              bestDay = dNum
+              bestSlot = sIdx
+            }
+          }
+        }
+      }
+
+      if (bestDay !== -1 && bestSlot !== -1) {
+        timetableGrid.get(bestDay)!.get(bestSlot)!.push(candidate)
+      } else {
+        // As absolute fallback, place in Day 1 Slot 0
+        timetableGrid.get(examDates[0].dayNumber)!.get(0)!.push(candidate)
+      }
     }
   }
 

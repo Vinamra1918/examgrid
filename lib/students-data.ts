@@ -1,4 +1,4 @@
-import { Student } from './types'
+import { Student, AcademicYear } from './types'
 
 export interface RawStudentTemplate {
   rollNo: string
@@ -178,93 +178,113 @@ export const rawStudentsTemplate: RawStudentTemplate[] = [
 // Semester 3 (2nd Year – Sem A Odd) Course Codes
 const sem3Courses = ['MA-301', 'CS-301', 'CS-302', 'EC-301', 'HU-301', 'CS-301-LAB', 'CS-302-LAB', 'EC-301-LAB', 'CS-303-LAB', 'EC-302-LAB']
 // Semester 4 (2nd Year – Sem B Even) Course Codes
-const sem4Courses = ['CS-401', 'MA-401', 'CS-402', 'CS-403', 'EC-401', 'CS-402-LAB', 'CS-404-LAB', 'EC-401-LAB', 'CS-405-LAB', 'HU-401', 'MC-401', 'IN-401']
+const sem4Courses = ['CS-401', 'MA-401', 'CS-402', 'CS-403', 'EC-401', 'CS-402-LAB', 'CS-404-LAB', 'EC-401-LAB', 'CS-405-LAB', 'HU-401', 'MC-401', 'IN-401-LAB']
 
 // Semester 5 (3rd Year – Sem A Odd) Course Codes
-const sem5Courses = ['CS-501', 'CS-502', 'CS-503', 'CS-504', 'CS-503-LAB', 'CS-504-LAB', 'IN-501', 'HU-501', 'PR-501']
+const sem5Courses = ['CS-501', 'CS-502', 'CS-503', 'CS-504', 'CS-503-LAB', 'CS-504-LAB', 'IN-501-LAB', 'HU-501', 'PR-501-LAB']
 // Semester 6 (3rd Year – Sem B Even) Course Codes
-const sem6Courses = ['CS-601', 'CS-602', 'CS-603', 'CS-604-E1', 'CS-601-LAB', 'CS-603-LAB', 'CS-602-LAB', 'CS-605-LAB', 'PR-601']
+const sem6Courses = ['CS-601', 'CS-602', 'CS-603', 'CS-604-E1', 'CS-601-LAB', 'CS-603-LAB', 'CS-602-LAB', 'CS-605-LAB', 'PR-601-LAB']
 
 // Semester 7 (4th Year – Sem A Odd) Course Codes
-const sem7Courses = ['CS-701-E2', 'CS-702-E3', 'CS-703-E4', 'CS-704-LAB', 'IN-701', 'PR-701']
+const sem7Courses = ['CS-701-E2', 'CS-702-E3', 'CS-703-E4', 'CS-704-LAB', 'IN-701-LAB', 'PR-701-LAB']
 // Semester 8 (4th Year – Sem B Even) Course Codes
-const sem8Courses = ['CS-801-E5', 'CS-802-E6', 'IN-801', 'PR-801']
+const sem8Courses = ['CS-801-E5', 'CS-802-E6', 'IN-801-LAB', 'PR-801-LAB']
 
 export function generateAllStudents(): Student[] {
   const result: Student[] = []
 
-  // 1. 2nd Year Students (0801CS25...)
-  // Section A -> Semester 3 (Sem A - Odd)
-  // Section B -> Semester 4 (Sem B - Even)
-  rawStudentsTemplate.forEach((item, index) => {
-    let rollNo = item.rollNo
-    if (rollNo.startsWith('0801CS2')) {
-      rollNo = '0801CS25' + rollNo.substring(8)
-    } else {
-      rollNo = rollNo.replace(/\d{2}/, '25')
+  // Helper to map roll numbers cleanly for a given year prefix without corrupting branch or lateral-entry codes
+  // e.g. 0801CS231001 -> 0801CS251001 for 2nd year (2025 batch), 0801EE231080 -> 0801EE251080
+  const transformRollNo = (rawRoll: string, targetYearDigits: string, itemIdx: number): string => {
+    // Pattern: (prefix 0801 + branch + digits/D + roll sequence)
+    // Match 0801 followed by 2 letters (CS, EE, IT, ME) followed by 2 admission digits (21/22/23/24)
+    const match = rawRoll.match(/^(0801[A-Z]{2})(\d{2})(.*)$/)
+    if (match) {
+      let suffix = match[3]
+      // Fix duplicate lateral entry / regular collisions in raw data by appending unique index if duplicate base
+      // Specific duplicates in template: 0801CS233D10 vs 0801CS243D10 etc.
+      // Or 0801CS221031 (item 11) & 0801CS231031 (item 44) -> when replacing with targetYearDigits they both become 0801CS251031.
+      // To ensure strictly unique roll numbers across all students in cohort:
+      const baseSequence = match[1] + targetYearDigits + suffix
+      return baseSequence
     }
-    const isSemA = item.section.startsWith('A')
-    const semester = isSemA ? 'Semester 3 (Sem A - Odd)' : 'Semester 4 (Sem B - Even)'
-    const courses = isSemA ? sem3Courses : sem4Courses
+    return rawRoll
+  }
 
-    result.push({
-      id: `s_2nd_${index + 1}`,
-      rollNo,
-      name: item.name,
-      year: '2nd Year',
-      semester,
-      branch: 'CSE',
-      enrolledCourseCodes: courses,
-      included: true,
+  // Generate unique roll number cohort per academic year
+  const generateCohort = (
+    yearLabel: AcademicYear,
+    yearPrefix: string,
+    semA: string,
+    semB: string,
+    coursesA: string[],
+    coursesB: string[],
+    idPrefix: string
+  ) => {
+    const seenRolls = new Set<string>()
+
+    rawStudentsTemplate.forEach((item, index) => {
+      let rollNo = transformRollNo(item.rollNo, yearPrefix, index)
+
+      // Handle duplicate roll numbers when mapping different year batches to same targetYearDigits
+      if (seenRolls.has(rollNo)) {
+        // Disambiguate with unique sequential offset or index padding
+        const padSeq = String(index + 1).padStart(3, '0')
+        const branchMatch = item.rollNo.match(/^(0801[A-Z]{2})/)
+        const branchPrefix = branchMatch ? branchMatch[1] : '0801CS'
+        rollNo = `${branchPrefix}${yearPrefix}9${padSeq.slice(-3)}`
+      }
+      seenRolls.add(rollNo)
+
+      const isSemA = item.section.startsWith('A')
+      const semester = isSemA ? semA : semB
+      const courses = isSemA ? coursesA : coursesB
+
+      result.push({
+        id: `s_${idPrefix}_${index + 1}`,
+        rollNo,
+        name: item.name,
+        year: yearLabel,
+        semester,
+        branch: 'CSE',
+        enrolledCourseCodes: courses,
+        included: true,
+      })
     })
-  })
+  }
 
-  // 2. 3rd Year Students (0801CS24...)
-  // Section A -> Semester 5 (Sem A - Odd)
-  // Section B -> Semester 6 (Sem B - Even)
-  rawStudentsTemplate.forEach((item, index) => {
-    let rollNo = item.rollNo
-    if (rollNo.startsWith('0801CS2')) {
-      rollNo = '0801CS24' + rollNo.substring(8)
-    } else {
-      rollNo = rollNo.replace(/\d{2}/, '24')
-    }
-    const isSemA = item.section.startsWith('A')
-    const semester = isSemA ? 'Semester 5 (Sem A - Odd)' : 'Semester 6 (Sem B - Even)'
-    const courses = isSemA ? sem5Courses : sem6Courses
+  // 1. 2nd Year Students (Admission year 25)
+  generateCohort(
+    '2nd Year',
+    '25',
+    'Semester 3 (Sem A - Odd)',
+    'Semester 4 (Sem B - Even)',
+    sem3Courses,
+    sem4Courses,
+    '2nd'
+  )
 
-    result.push({
-      id: `s_3rd_${index + 1}`,
-      rollNo,
-      name: item.name,
-      year: '3rd Year',
-      semester,
-      branch: 'CSE',
-      enrolledCourseCodes: courses,
-      included: true,
-    })
-  })
+  // 2. 3rd Year Students (Admission year 24)
+  generateCohort(
+    '3rd Year',
+    '24',
+    'Semester 5 (Sem A - Odd)',
+    'Semester 6 (Sem B - Even)',
+    sem5Courses,
+    sem6Courses,
+    '3rd'
+  )
 
-  // 3. 4th Year Students
-  // Section A -> Semester 7 (Sem A - Odd)
-  // Section B -> Semester 8 (Sem B - Even)
-  rawStudentsTemplate.forEach((item, index) => {
-    const rollNo = item.rollNo
-    const isSemA = item.section.startsWith('A')
-    const semester = isSemA ? 'Semester 7 (Sem A - Odd)' : 'Semester 8 (Sem B - Even)'
-    const courses = isSemA ? sem7Courses : sem8Courses
-
-    result.push({
-      id: `s_4th_${index + 1}`,
-      rollNo,
-      name: item.name,
-      year: '4th Year',
-      semester,
-      branch: 'CSE',
-      enrolledCourseCodes: courses,
-      included: true,
-    })
-  })
+  // 3. 4th Year Students (Admission year 23)
+  generateCohort(
+    '4th Year',
+    '23',
+    'Semester 7 (Sem A - Odd)',
+    'Semester 8 (Sem B - Even)',
+    sem7Courses,
+    sem8Courses,
+    '4th'
+  )
 
   return result
 }

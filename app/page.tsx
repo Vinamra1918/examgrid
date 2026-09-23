@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Activity,
   AlertCircle,
+  AlertTriangle,
   BarChart3,
   Bell,
   BookOpen,
@@ -266,11 +267,6 @@ export default function Page() {
                     {id === 'timetable' && scheduleResult && (
                       <span className="rounded-md bg-sidebar-foreground/10 px-1.5 py-0.5 text-[10px]">
                         {scheduleResult.slots.length} Slots
-                      </span>
-                    )}
-                    {id === 'seating' && scheduleResult && (
-                      <span className="rounded-md bg-sidebar-foreground/10 px-1.5 py-0.5 text-[10px]">
-                        {scheduleResult.totalStudentsSeated} Seats
                       </span>
                     )}
                   </button>
@@ -589,8 +585,18 @@ export default function Page() {
                   <p className="mt-4 text-3xl font-bold tracking-tight text-foreground">
                     {scheduleResult.priorityDispersionScore}%
                   </p>
-                  <p className="mt-1 text-xs font-medium text-purple-600 dark:text-purple-400">
-                    High-Priority Isolation Verified
+                  <p className={`mt-1 text-xs font-medium ${
+                    scheduleResult.priorityDispersionScore >= 80
+                      ? 'text-purple-600 dark:text-purple-400'
+                      : scheduleResult.priorityDispersionScore > 0
+                      ? 'text-amber-600 dark:text-amber-400'
+                      : 'text-rose-600 dark:text-rose-400'
+                  }`}>
+                    {scheduleResult.priorityDispersionScore >= 80
+                      ? 'High-Priority Isolation Verified'
+                      : scheduleResult.priorityDispersionScore > 0
+                      ? 'Partial Priority Isolation'
+                      : 'No Priority Isolation'}
                   </p>
                 </div>
               </section>
@@ -598,72 +604,91 @@ export default function Page() {
               {/* Solver & Features Row */}
               <section className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
                 {/* Schedule Solver Status Card */}
-                <div className="flex flex-col justify-between rounded-2xl border border-border bg-card shadow-xs">
-                  <div className="flex items-center justify-between border-b border-border p-5">
-                    <div>
-                      <h3 className="font-bold text-foreground">
-                        Constraint Optimization Engine
-                      </h3>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        Real-time backtracking solver for multi-course room sharing and bench seating
-                      </p>
-                    </div>
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-400">
-                      <CheckCircle2 className="size-3.5" />
-                      Optimal Solution
-                    </span>
-                  </div>
+                {(() => {
+                  const violationsCount = scheduleResult.constraintViolations.length
+                  const isOptimal = violationsCount === 0
+                  const passPercentage = isOptimal
+                    ? 100
+                    : Math.max(0, Math.round(100 - (violationsCount * 15)))
 
-                  <div className="grid gap-6 p-5 sm:grid-cols-2 sm:items-center">
-                    <div>
-                      <div className="mb-2 flex items-center justify-between text-xs">
-                        <span className="font-semibold text-foreground">
-                          Hard Constraints (Clash-Free)
-                        </span>
-                        <span className="font-bold text-emerald-600">100% Passed</span>
-                      </div>
-                      <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                        <div
-                          className="h-full rounded-full bg-emerald-500 transition-all"
-                          style={{ width: `${running ? progress : 100}%` }}
-                        />
-                      </div>
-
-                      <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
-                        <div className="rounded-lg border border-border/60 bg-muted/20 p-2.5">
-                          <p className="text-muted-foreground text-[11px]">Bench Policy</p>
-                          <p className="font-bold text-foreground mt-0.5">
-                            {config.seatingMode === 'interleave_two_exams'
-                              ? 'Interleaved 2-Exam'
-                              : 'Single Exam'}
+                  return (
+                    <div className="flex flex-col justify-between rounded-2xl border border-border bg-card shadow-xs">
+                      <div className="flex items-center justify-between border-b border-border p-5">
+                        <div>
+                          <h3 className="font-bold text-foreground">
+                            Constraint Optimization Engine
+                          </h3>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            Real-time backtracking solver for multi-course room sharing and bench seating
                           </p>
                         </div>
-                        <div className="rounded-lg border border-border/60 bg-muted/20 p-2.5">
-                          <p className="text-muted-foreground text-[11px]">Slots Generated</p>
-                          <p className="font-bold text-foreground mt-0.5">
-                            {scheduleResult.slots.length} Total Slots
+                        {isOptimal ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                            <CheckCircle2 className="size-3.5" />
+                            Optimal Solution
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-bold text-amber-700 dark:text-amber-400">
+                            <AlertTriangle className="size-3.5" />
+                            {violationsCount} Constraint Issues
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="grid gap-6 p-5 sm:grid-cols-2 sm:items-center">
+                        <div>
+                          <div className="mb-2 flex items-center justify-between text-xs">
+                            <span className="font-semibold text-foreground">
+                              Hard Constraints (Clash-Free)
+                            </span>
+                            <span className={`font-bold ${isOptimal ? 'text-emerald-600' : 'text-amber-600'}`}>
+                              {passPercentage}% Passed
+                            </span>
+                          </div>
+                          <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                            <div
+                              className={`h-full rounded-full transition-all ${isOptimal ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                              style={{ width: `${running ? progress : passPercentage}%` }}
+                            />
+                          </div>
+
+                          <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
+                            <div className="rounded-lg border border-border/60 bg-muted/20 p-2.5">
+                              <p className="text-muted-foreground text-[11px]">Bench Policy</p>
+                              <p className="font-bold text-foreground mt-0.5">
+                                {config.seatingMode === 'interleave_two_exams'
+                                  ? 'Interleaved 2-Exam'
+                                  : 'Single Exam'}
+                              </p>
+                            </div>
+                            <div className="rounded-lg border border-border/60 bg-muted/20 p-2.5">
+                              <p className="text-muted-foreground text-[11px]">Slots Generated</p>
+                              <p className="font-bold text-foreground mt-0.5">
+                                {scheduleResult.slots.length} Total Slots
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col justify-between rounded-xl bg-muted/40 p-4">
+                          <div className="flex items-center gap-2 text-xs font-bold text-primary">
+                            <Sparkles className="size-4" />
+                            <span>Smart Seating Insights</span>
+                          </div>
+                          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                            Benches alternate students between different academic years (e.g. 1st Year + 3rd Year) to completely eliminate examination malpractice.
                           </p>
+                          <button
+                            onClick={() => setActiveTab('seating')}
+                            className="mt-3 text-xs font-bold text-primary hover:underline text-left"
+                          >
+                            Inspect Bench Desk Matrix →
+                          </button>
                         </div>
                       </div>
                     </div>
-
-                    <div className="flex flex-col justify-between rounded-xl bg-muted/40 p-4">
-                      <div className="flex items-center gap-2 text-xs font-bold text-primary">
-                        <Sparkles className="size-4" />
-                        <span>Smart Seating Insights</span>
-                      </div>
-                      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                        Benches alternate students between different academic years (e.g. 1st Year + 3rd Year) to completely eliminate examination malpractice.
-                      </p>
-                      <button
-                        onClick={() => setActiveTab('seating')}
-                        className="mt-3 text-xs font-bold text-primary hover:underline text-left"
-                      >
-                        Inspect Bench Desk Matrix →
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                  )
+                })()}
 
                 {/* Quick Roll Number Search / Lookup Widget */}
                 <div className="flex flex-col justify-between rounded-2xl border border-border bg-card p-5 shadow-xs">

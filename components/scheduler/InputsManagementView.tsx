@@ -1069,16 +1069,23 @@ export function InputsManagementView({
 
             {/* Individual Day-by-Day Slot Customizer */}
             {(() => {
-              // Compute active days list
-              const sDate = new Date(config.startDate || '2025-05-12')
-              const eDate = new Date(config.endDate || config.startDate || '2025-05-16')
+              // Compute active days list safely avoiding UTC shift
+              const parseLocal = (s: string) => {
+                const parts = s.split('-').map(Number)
+                return parts.length === 3 ? new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0) : new Date(s)
+              }
+              const sDate = parseLocal(config.startDate || '2025-05-12')
+              const eDate = parseLocal(config.endDate || config.startDate || '2025-05-16')
               const holidaysSet = new Set(config.holidays || [])
               const computedDays: { dayNumber: number; dateStr: string }[] = []
               let cur = new Date(sDate)
               let dNum = 1
 
               while (cur <= eDate) {
-                const iso = cur.toISOString().split('T')[0]
+                const y = cur.getFullYear()
+                const m = String(cur.getMonth() + 1).padStart(2, '0')
+                const d = String(cur.getDate()).padStart(2, '0')
+                const iso = `${y}-${m}-${d}`
                 if (cur.getDay() !== 0 && !holidaysSet.has(iso)) {
                   computedDays.push({
                     dayNumber: dNum++,

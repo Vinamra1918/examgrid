@@ -77,8 +77,14 @@ export function FacultyDutyRoster({ scheduleResult }: FacultyDutyRosterProps) {
               <h3 className="text-base font-bold text-foreground">
                 Priority Invigilator Dispersion Engine
               </h3>
-              <span className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-bold text-emerald-700 dark:text-emerald-400">
-                {priorityDispersionScore}% Verified
+              <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                priorityDispersionScore >= 80
+                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
+                  : priorityDispersionScore > 0
+                  ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400'
+                  : 'bg-red-500/15 text-red-700 dark:text-red-400'
+              }`}>
+                {priorityDispersionScore}% {priorityDispersionScore >= 80 ? 'Verified' : 'Dispersion Score'}
               </span>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
