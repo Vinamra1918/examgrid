@@ -16,14 +16,22 @@ import {
   UserCheck,
   Users,
 } from 'lucide-react'
-import { AcademicYear, ExamType, ScheduledSlot } from '@/lib/types'
+import { AcademicYear, ExamSessionConfig, ExamType, ScheduleResult, ScheduledSlot } from '@/lib/types'
+import { StudentTimetablePdf } from '@/components/scheduler/StudentTimetablePdf'
 
 interface TimetableGridProps {
   slots: ScheduledSlot[]
   onSelectSlotForSeating: (slotId: string) => void
+  scheduleResult?: ScheduleResult | null
+  config?: ExamSessionConfig
 }
 
-export function TimetableGrid({ slots, onSelectSlotForSeating }: TimetableGridProps) {
+export function TimetableGrid({
+  slots,
+  onSelectSlotForSeating,
+  scheduleResult,
+  config,
+}: TimetableGridProps) {
   const [selectedYear, setSelectedYear] = useState<string>('All')
   const [selectedType, setSelectedType] = useState<string>('All')
   const [viewFormat, setViewFormat] = useState<'table' | 'cards'>('table')
@@ -161,13 +169,18 @@ export function TimetableGrid({ slots, onSelectSlotForSeating }: TimetableGridPr
           </div>
         </div>
 
-        <button
-          onClick={handlePrint}
-          className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs font-semibold text-foreground shadow-xs hover:bg-muted"
-        >
-          <Printer className="size-3.5" />
-          Print Timetable
-        </button>
+        <div className="flex items-center gap-2">
+          {scheduleResult && config && (
+            <StudentTimetablePdf scheduleResult={scheduleResult} config={config} />
+          )}
+          <button
+            onClick={handlePrint}
+            className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs font-semibold text-foreground shadow-xs hover:bg-muted"
+          >
+            <Printer className="size-3.5" />
+            Print Timetable
+          </button>
+        </div>
       </div>
 
       {/* ========================================================================= */}

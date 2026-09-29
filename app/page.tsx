@@ -55,6 +55,7 @@ import {
 import { generateSchedule } from '@/lib/scheduler-engine'
 import { VisualSeatingGrid } from '@/components/scheduler/VisualSeatingGrid'
 import { TimetableGrid } from '@/components/scheduler/TimetableGrid'
+import { StudentTimetablePdf } from '@/components/scheduler/StudentTimetablePdf'
 import { FacultyDutyRoster } from '@/components/scheduler/FacultyDutyRoster'
 import { InputManagerModal } from '@/components/scheduler/InputManagerModal'
 import { InputsManagementView } from '@/components/scheduler/InputsManagementView'
@@ -373,6 +374,11 @@ export default function Page() {
               <span className="hidden sm:inline">All Inputs & Setup</span>
             </button>
 
+            {/* Generate Student Timetable PDF Quick Action */}
+            {scheduleResult && (
+              <StudentTimetablePdf scheduleResult={scheduleResult} config={config} />
+            )}
+
             {/* Solver Run Button */}
             <button
               onClick={handleRunSolver}
@@ -483,6 +489,7 @@ export default function Page() {
                 </div>
 
                 <div className="flex flex-wrap gap-2">
+                  <StudentTimetablePdf scheduleResult={scheduleResult} config={config} />
                   <button
                     onClick={() => window.print()}
                     className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3.5 py-2 text-xs font-bold text-foreground shadow-2xs hover:bg-muted"
@@ -761,6 +768,8 @@ export default function Page() {
                 <TimetableGrid
                   slots={scheduleResult.slots}
                   onSelectSlotForSeating={navigateToSeatingSlot}
+                  scheduleResult={scheduleResult}
+                  config={config}
                 />
               </section>
             </div>
@@ -778,11 +787,16 @@ export default function Page() {
                     Slot-by-slot timetable matrix for {config.title}
                   </p>
                 </div>
+                <div className="flex items-center gap-2">
+                  <StudentTimetablePdf scheduleResult={scheduleResult} config={config} />
+                </div>
               </div>
 
               <TimetableGrid
                 slots={scheduleResult.slots}
                 onSelectSlotForSeating={navigateToSeatingSlot}
+                scheduleResult={scheduleResult}
+                config={config}
               />
             </div>
           )}
