@@ -477,17 +477,22 @@ export function InputsManagementView({
   const importStudentRows = (rows: ExcelRow[], mode: ExcelMergeMode) => {
     const incoming: Student[] = rows
       .filter((row) => getExcelValue(row, 'name', 'full name') && getExcelValue(row, 'rollNo', 'roll number', 'roll'))
-      .map((row, index) => ({
-        id: `s_excel_${Date.now()}_${index}`,
-        name: getExcelValue(row, 'name', 'full name'),
-        rollNo: getExcelValue(row, 'rollNo', 'roll number', 'roll'),
-        year: normalizeAcademicYear(getExcelValue(row, 'year', 'academic year')),
-        semester: normalizeSemester(getExcelValue(row, 'semester', 'sem')),
-        branch: getExcelValue(row, 'branch', 'department') || 'CSE',
-        batch: getExcelValue(row, 'batch', 'section') || 'Batch A',
-        enrolledCourseCodes: getExcelValue(row, 'enrolledCourseCodes', 'enrolled courses', 'course codes', 'courses').split(/[,;|]/).map((code) => code.trim().toUpperCase()).filter(Boolean),
-        included: true,
-      }))
+      .map((row, index) => {
+        const semester = normalizeSemester(getExcelValue(row, 'semester', 'sem'))
+        const explicitSection = getExcelValue(row, 'batch', 'section')
+        const semNumber = Number(semester.match(/\d+/)?.[0] || 1)
+        return {
+          id: `s_excel_${Date.now()}_${index}`,
+          name: getExcelValue(row, 'name', 'full name'),
+          rollNo: getExcelValue(row, 'rollNo', 'roll number', 'roll'),
+          year: normalizeAcademicYear(getExcelValue(row, 'year', 'academic year')),
+          semester,
+          branch: getExcelValue(row, 'branch', 'department') || 'CSE',
+          batch: explicitSection || `Section ${semNumber % 2 === 1 ? 'A' : 'B'}`,
+          enrolledCourseCodes: getExcelValue(row, 'enrolledCourseCodes', 'enrolled courses', 'course codes', 'courses').split(/[,;|]/).map((code) => code.trim().toUpperCase()).filter(Boolean),
+          included: true,
+        }
+      })
     if (!incoming.length) return 'No valid students found. Name and roll number are required.'
     setStudentSearch('')
     setStudentSemFilter('All')

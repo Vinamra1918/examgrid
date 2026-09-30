@@ -53,6 +53,7 @@ import {
   defaultTeachers,
 } from '@/lib/presets'
 import { generateSchedule } from '@/lib/scheduler-engine'
+import { generateAllStudents } from '@/lib/students-data'
 import { VisualSeatingGrid } from '@/components/scheduler/VisualSeatingGrid'
 import { TimetableGrid } from '@/components/scheduler/TimetableGrid'
 import { StudentTimetablePdf } from '@/components/scheduler/StudentTimetablePdf'
@@ -84,6 +85,7 @@ export default function Page() {
   const [selectedPresetType, setSelectedPresetType] = useState<'mst' | 'end_sem' | 'quiz'>('mst')
   const [config, setConfig] = useState<ExamSessionConfig>(defaultExamConfigs.mst)
   const [students, setStudents] = useState<Student[]>(defaultStudents)
+  const [sectionRotation, setSectionRotation] = useState<'odd' | 'even'>('odd')
   const [courses, setCourses] = useState<Course[]>(defaultCourses)
   const [rooms, setRooms] = useState<Room[]>(defaultRooms)
   const [teachers, setTeachers] = useState<Teacher[]>(defaultTeachers)
@@ -220,6 +222,21 @@ export default function Page() {
   const navigateToSeatingSlot = (slotId: string) => {
     setSelectedSlotForSeating(slotId)
     setActiveTab('seating')
+  }
+
+  const handleSectionRotationChange = (rotation: 'odd' | 'even') => {
+    const rotatedStudents = new Map(generateAllStudents(rotation).map((student) => [student.id, student]))
+    const nextStudents = students.map((student) => {
+      const rotated = rotatedStudents.get(student.id)
+      return rotated
+        ? { ...student, semester: rotated.semester, batch: rotated.batch, enrolledCourseCodes: rotated.enrolledCourseCodes }
+        : student
+    })
+    setSectionRotation(rotation)
+    setStudents(nextStudents)
+    const result = generateSchedule(config, nextStudents, courses, rooms, teachers)
+    setScheduleResult(result)
+    if (result.slots.length > 0) setSelectedSlotForSeating(result.slots[0].slotId)
   }
 
   return (
@@ -361,6 +378,20 @@ export default function Page() {
           </div>
 
           <div className="flex items-center gap-2 md:gap-3">
+            <div className="flex items-center gap-1 rounded-xl border border-border bg-card p-1">
+              <span className="px-1.5 text-[9px] font-semibold text-muted-foreground sm:px-2 sm:text-[10px]">A: {sectionRotation} · B: {sectionRotation === 'odd' ? 'even' : 'odd'}</span>
+              {(['odd', 'even'] as const).map((rotation) => (
+                <button
+                  key={rotation}
+                  type="button"
+                  onClick={() => handleSectionRotationChange(rotation)}
+                  aria-pressed={sectionRotation === rotation}
+                  className={`rounded-lg px-2.5 py-1.5 text-[10px] font-bold capitalize ${sectionRotation === rotation ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+                >
+                  {rotation}
+                </button>
+              ))}
+            </div>
             {/* Manage Parameters / All Inputs Button */}
             <button
               onClick={() => setActiveTab('inputs')}

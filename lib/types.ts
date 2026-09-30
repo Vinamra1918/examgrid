@@ -165,6 +165,7 @@ export interface ScheduledSlot {
     type: 'theory' | 'lab_quiz'
     durationMinutes: number
     studentCount: number
+    sections: string[]
   }[]
   roomAllocations: RoomSeatingPlan[]
   assignedFaculty: {

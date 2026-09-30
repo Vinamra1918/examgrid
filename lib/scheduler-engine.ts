@@ -12,6 +12,21 @@ import {
   TeacherPriority,
 } from './types'
 
+function normalizeSectionLabel(value?: string): string | undefined {
+  if (!value) return undefined
+  const normalized = value.trim().replace(/^(?:section|batch)\s*/i, '')
+  const match = normalized.match(/^([ab])\s*\d*$/i)
+  return match ? `Section ${match[1].toUpperCase()}` : undefined
+}
+
+function formatClockTime(value: string): string {
+  const [hourValue, minuteValue] = value.split(':').map(Number)
+  if (!Number.isFinite(hourValue) || !Number.isFinite(minuteValue)) return value
+  const suffix = hourValue >= 12 ? 'PM' : 'AM'
+  const hour = hourValue % 12 || 12
+  return `${hour}:${String(minuteValue).padStart(2, '0')} ${suffix}`
+}
+
 export function generateSchedule(
   config: ExamSessionConfig,
   students: Student[],
@@ -776,32 +791,29 @@ export function generateSchedule(
       }
 
       // Calculate slot time range
-      const maxCourseDuration = Math.max(
-        ...slotCourses.map(
-          (c) =>
-            c.durationMinutes ||
-            (c.type === 'lab_quiz'
-              ? config.labDurationMinutes || 60
-              : config.theoryDurationMinutes || 60)
-        ),
-        60
+      const courseDurations = slotCourses.map(
+        (c) =>
+          c.durationMinutes ||
+          (c.type === 'lab_quiz'
+            ? config.labDurationMinutes || 60
+            : config.theoryDurationMinutes || 60)
       )
+      const maxCourseDuration = courseDurations.length ? Math.max(...courseDurations) : 60
 
-      let computedEndTime = slotConfig.endTime
-      if (!computedEndTime && slotConfig.startTime) {
-        const [h, m] = slotConfig.startTime.split(':').map((v) => parseInt(v, 10))
-        const endTotalMins = (h || 9) * 60 + (m || 0) + maxCourseDuration
-        const endH = String(Math.floor(endTotalMins / 60) % 24).padStart(2, '0')
-        const endM = String(endTotalMins % 60).padStart(2, '0')
-        computedEndTime = `${endH}:${endM}`
-      }
+      const [startHour, startMinute] = (slotConfig.startTime || '09:30').split(':').map(Number)
+      const startTotalMinutes = (Number.isFinite(startHour) ? startHour : 9) * 60 +
+        (Number.isFinite(startMinute) ? startMinute : 30)
+      const endTotalMinutes = startTotalMinutes + maxCourseDuration
+      const endHour = String(Math.floor(endTotalMinutes / 60) % 24).padStart(2, '0')
+      const endMinute = String(endTotalMinutes % 60).padStart(2, '0')
+      const computedEndTime = `${endHour}:${endMinute}`
 
       scheduledSlots.push({
         slotId: `slot_${day}_${sIdx + 1}`,
         dayNumber: day,
         date: formattedDate,
         slotLabel: slotConfig.label,
-        timeRange: `${slotConfig.startTime} – ${computedEndTime || '10:30'}`,
+        timeRange: `${formatClockTime(slotConfig.startTime || '09:30')} – ${formatClockTime(computedEndTime)}`,
         examType: config.examType,
         scheduledCourses: slotCourses.map((c) => {
           const duration =
@@ -817,6 +829,9 @@ export function generateSchedule(
             type: c.type,
             durationMinutes: duration,
             studentCount: (courseEnrollments.get(c.code) || []).length,
+            sections: Array.from(new Set((courseEnrollments.get(c.code) || [])
+              .map((student) => normalizeSectionLabel(student.batch))
+              .filter((section): section is string => Boolean(section)))),
           }
         }),
         roomAllocations,

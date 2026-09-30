@@ -19,6 +19,12 @@ import {
 import { AcademicYear, ExamSessionConfig, ExamType, ScheduleResult, ScheduledSlot } from '@/lib/types'
 import { StudentTimetablePdf } from '@/components/scheduler/StudentTimetablePdf'
 
+function normalizeSectionLabel(value: string): string | undefined {
+  const normalized = value.trim().replace(/^(?:section|batch)\s*/i, '')
+  const match = normalized.match(/^([ab])\s*\d*$/i)
+  return match ? `Section ${match[1].toUpperCase()}` : undefined
+}
+
 interface TimetableGridProps {
   slots: ScheduledSlot[]
   onSelectSlotForSeating: (slotId: string) => void
@@ -34,6 +40,7 @@ export function TimetableGrid({
 }: TimetableGridProps) {
   const [selectedYear, setSelectedYear] = useState<string>('All')
   const [selectedType, setSelectedType] = useState<string>('All')
+  const [selectedSection, setSelectedSection] = useState<'All' | 'Section A' | 'Section B'>('All')
   const [viewFormat, setViewFormat] = useState<'table' | 'cards'>('table')
 
   const years: string[] = ['All', '1st Year', '2nd Year', '3rd Year', '4th Year']
@@ -53,13 +60,14 @@ export function TimetableGrid({
       const matchingCourses = slot.scheduledCourses.filter((c) => {
         const matchYear = selectedYear === 'All' || c.year === selectedYear
         const matchType = selectedType === 'All' || c.type === selectedType
-        return matchYear && matchType
+        const matchSection = selectedSection === 'All' || c.sections?.some((section) => normalizeSectionLabel(section) === selectedSection)
+        return matchYear && matchType && matchSection
       })
 
       return {
         ...slot,
-        visibleCourses: matchingCourses.length > 0 ? matchingCourses : (selectedYear === 'All' && selectedType === 'All' ? slot.scheduledCourses : []),
-        isVisible: matchingCourses.length > 0 || (selectedYear === 'All' && selectedType === 'All' && slot.scheduledCourses.length > 0),
+        visibleCourses: matchingCourses,
+        isVisible: matchingCourses.length > 0,
       }
     })
     .filter((s) => s.isVisible && s.visibleCourses.length > 0)
@@ -167,6 +175,21 @@ export function TimetableGrid({
               </button>
             ))}
           </div>
+
+          {/* Separate Section Timetables */}
+          <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/40 p-1">
+            <span className="ml-2 mr-1 text-xs font-semibold text-muted-foreground">Section:</span>
+            {(['All', 'Section A', 'Section B'] as const).map((section) => (
+              <button
+                key={section}
+                onClick={() => setSelectedSection(section)}
+                aria-pressed={selectedSection === section}
+                className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-all ${selectedSection === section ? 'bg-primary text-primary-foreground shadow-xs' : 'text-muted-foreground hover:bg-background hover:text-foreground'}`}
+              >
+                {section}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -258,6 +281,9 @@ export function TimetableGrid({
                       <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground mt-0.5 inline-block">
                         {row.course.semester || 'All Cohorts'}
                       </span>
+                      {row.course.sections?.length > 0 && (
+                        <span className="mt-1 block text-[10px] font-bold text-primary">{row.course.sections.join(' · ')}</span>
+                      )}
                     </td>
 
                     {/* Duration */}
@@ -419,6 +445,9 @@ export function TimetableGrid({
                                     {c.semester}
                                   </span>
                                 )}
+                                {c.sections?.map((section) => (
+                                  <span key={section} className="rounded bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">{section}</span>
+                                ))}
                               </div>
                               <span
                                 className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
