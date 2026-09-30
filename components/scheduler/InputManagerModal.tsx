@@ -26,7 +26,21 @@ import {
   Teacher,
   TeacherPriority,
 } from '@/lib/types'
-import { defaultCourses, defaultExamConfigs, defaultRooms, defaultStudents, defaultTeachers } from '@/lib/presets'
+import {
+  defaultCourses,
+  defaultExamConfigs,
+  defaultMstCourses,
+  defaultMstRooms,
+  defaultMstStudents,
+  defaultMstTeachers,
+  defaultQuizCourses,
+  defaultQuizRooms,
+  defaultQuizStudents,
+  defaultQuizTeachers,
+  defaultRooms,
+  defaultStudents,
+  defaultTeachers,
+} from '@/lib/presets'
 
 interface InputManagerModalProps {
   isOpen: boolean
@@ -132,10 +146,9 @@ export function InputManagerModal({
       year: (newCourse.year as AcademicYear) || '1st Year',
       department: newCourse.department || 'CSE',
       type: newCourse.type || 'theory',
-      durationMinutes: Number(newCourse.durationMinutes) || 90,
     }
     setCourses((prev) => [...prev, added])
-    setNewCourse({ code: '', name: '', year: '1st Year', department: 'CSE', type: 'theory', durationMinutes: 90 })
+    setNewCourse({ code: '', name: '', year: '1st Year', department: 'CSE', type: 'theory' })
   }
 
   // Add Room Handler
@@ -173,10 +186,17 @@ export function InputManagerModal({
   // Preset switch
   const handleLoadPreset = (type: 'mst' | 'quiz') => {
     setConfig(defaultExamConfigs[type])
-    setStudents(defaultStudents)
-    setCourses(defaultCourses)
-    setRooms(defaultRooms)
-    setTeachers(defaultTeachers)
+    if (type === 'quiz') {
+      setStudents(defaultQuizStudents)
+      setCourses(defaultQuizCourses)
+      setRooms(defaultQuizRooms)
+      setTeachers(defaultQuizTeachers)
+    } else {
+      setStudents(defaultMstStudents)
+      setCourses(defaultMstCourses)
+      setRooms(defaultMstRooms)
+      setTeachers(defaultMstTeachers)
+    }
   }
 
   return (
@@ -250,26 +270,19 @@ export function InputManagerModal({
           {/* TAB 1: Exam Parameters */}
           {activeTab === 'params' && (
             <div className="flex flex-col gap-6">
-              <div className="rounded-2xl border border-border bg-muted/20 p-5">
-                <h3 className="text-sm font-bold text-foreground mb-1">
-                  Quick Examination Presets
-                </h3>
-                <p className="text-xs text-muted-foreground mb-4">
-                  Select an examination mode to test with realistic college datasets:
-                </p>
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    onClick={() => handleLoadPreset('mst')}
-                    className="rounded-xl border border-border bg-card px-4 py-2.5 text-xs font-bold text-foreground shadow-2xs hover:border-primary hover:bg-primary/5 transition-all"
-                  >
-                    📝 Mid-Semester Test (MST) Timetable
-                  </button>
-                  <button
-                    onClick={() => handleLoadPreset('quiz')}
-                    className="rounded-xl border border-border bg-card px-4 py-2.5 text-xs font-bold text-foreground shadow-2xs hover:border-primary hover:bg-primary/5 transition-all"
-                  >
-                    🔬 Computer Lab Quizzes & Evaluations
-                  </button>
+              <div className="flex items-center justify-between rounded-xl border border-primary/20 bg-primary/5 p-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">{config.examType === 'quiz' ? '🔬' : '📝'}</span>
+                  <div>
+                    <h3 className="text-sm font-bold text-foreground">
+                      Active Mode: {config.examType === 'quiz' ? 'Practical Lab Evaluations / Quizzes' : 'Mid-Sem Test (MST)'}
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {config.examType === 'quiz'
+                        ? 'Using dedicated lab workstations and lab course catalog. Mode selectable from sidebar navigation.'
+                        : 'Using dedicated lecture halls, theory courses, and interleaved bench seating. Mode selectable from sidebar navigation.'}
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -420,13 +433,14 @@ export function InputManagerModal({
                       <th className="p-3">Name</th>
                       <th className="p-3">Year / Batch</th>
                       <th className="p-3">Branch</th>
-                      <th className="p-3">Enrolled Courses</th>
+                      <th className="p-3">Exam Eligibility</th>
                       <th className="p-3 text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {students.map((s) => {
                       const isIncluded = s.included !== false
+                      const semLabel = s.semester || (s.year === '1st Year' ? 'Semester 1' : s.year === '2nd Year' ? 'Semester 3' : s.year === '3rd Year' ? 'Semester 5' : 'Semester 7')
                       return (
                         <tr key={s.id} className={`hover:bg-muted/15 ${!isIncluded ? 'opacity-50' : ''}`}>
                           <td className="p-3">
@@ -454,12 +468,12 @@ export function InputManagerModal({
                           <td className="p-3 text-foreground">{s.name}</td>
                           <td className="p-3">
                             <span className="rounded bg-muted px-1.5 py-0.5 font-semibold text-muted-foreground">
-                              {s.semester || (s.year === '1st Year' ? 'Semester 1 (Sem A - Odd)' : s.year === '2nd Year' ? 'Semester 3 (Sem A - Odd)' : s.year === '3rd Year' ? 'Semester 5 (Sem A - Odd)' : 'Semester 7 (Sem A - Odd)')}
+                              {semLabel}
                             </span>
                           </td>
                           <td className="p-3 font-medium text-foreground">{s.branch}</td>
-                          <td className="p-3 text-muted-foreground">
-                            {s.enrolledCourseCodes.join(', ')}
+                          <td className="p-3 text-xs font-semibold text-emerald-600">
+                            ✓ All {semLabel.split(' ')[0]} {semLabel.split(' ')[1] || ''} Exams
                           </td>
                           <td className="p-3 text-right">
                             <button

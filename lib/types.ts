@@ -27,7 +27,7 @@ export interface Student {
   semester?: AcademicSemester | string
   branch: string
   batch?: string // e.g. 'Batch A', 'Batch B'
-  enrolledCourseCodes: string[]
+  enrolledCourseCodes?: string[]
   included?: boolean // When false, omitted from schedule generation
 }
 
@@ -39,11 +39,7 @@ export interface Course {
   semester?: AcademicSemester | string
   department: string
   type: 'theory' | 'lab_quiz'
-  priority?: number // Higher priority (e.g. 1, 2, 3...) or custom priority scheduled early
-  durationMinutes?: number // Optional override, defaults to exam session duration
   enrolledStudentCount?: number
-  bindingGroup?: number // Courses with the same binding number within a semester are bound to happen on the same day with minimum time difference
-  pairedWithCourseCode?: string // Legacy fallback
   included?: boolean // When false, course is preserved in memory/list but not scheduled
 }
 
@@ -98,6 +94,7 @@ export interface ExamSessionConfig {
   labDurationMinutes: number // default fallback duration e.g., 60 mins for Lab Quiz
   slotsPerDay: ExamSlotConfig[] // Default template applied to all days
   daySpecificSlots?: Record<number, ExamSlotConfig[]> // Custom slot overrides per day (Day 1, Day 2, Day 3, etc.)
+  fixedCourseSlots?: Record<string, { dayNumber: number; slotIndex: number }> // User-defined pinned courses (courseCode -> { dayNumber, slotIndex })
   seatingMode: SeatingMode
   allowTwoExamsInOneRoom: boolean
 }
@@ -165,6 +162,7 @@ export interface ScheduledSlot {
     type: 'theory' | 'lab_quiz'
     durationMinutes: number
     studentCount: number
+    sections: string[]
   }[]
   roomAllocations: RoomSeatingPlan[]
   assignedFaculty: {
@@ -194,5 +192,9 @@ export interface ScheduleResult {
   }[]
   priorityDispersionScore: number // percentage of slots where high-priority faculty were isolated in separate rooms
   constraintViolations: string[]
+  unscheduledCourses?: {
+    course: Course
+    reason: string
+  }[]
   generatedAt: string
 }

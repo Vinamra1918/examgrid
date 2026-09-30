@@ -48,14 +48,25 @@ import {
 import {
   defaultCourses,
   defaultExamConfigs,
+  defaultMstCourses,
+  defaultMstRooms,
+  defaultMstStudents,
+  defaultMstTeachers,
+  defaultQuizCourses,
+  defaultQuizRooms,
+  defaultQuizStudents,
+  defaultQuizTeachers,
   defaultRooms,
   defaultStudents,
   defaultTeachers,
 } from '@/lib/presets'
 import { generateSchedule } from '@/lib/scheduler-engine'
+import { generateAllStudents } from '@/lib/students-data'
 import { VisualSeatingGrid } from '@/components/scheduler/VisualSeatingGrid'
 import { TimetableGrid } from '@/components/scheduler/TimetableGrid'
 import { StudentTimetablePdf } from '@/components/scheduler/StudentTimetablePdf'
+import { StudentSeatingPlanPdf } from '@/components/scheduler/StudentSeatingPlanPdf'
+import { FacultyDutyChartPdf } from '@/components/scheduler/FacultyDutyChartPdf'
 import { FacultyDutyRoster } from '@/components/scheduler/FacultyDutyRoster'
 import { InputManagerModal } from '@/components/scheduler/InputManagerModal'
 import { InputsManagementView } from '@/components/scheduler/InputsManagementView'
@@ -80,13 +91,14 @@ export default function Page() {
     setMounted(true)
   }, [])
 
-  // Datasets & Config state
+  // Datasets & Config state (initialized with dedicated MST dataset & clean empty rules)
   const [selectedPresetType, setSelectedPresetType] = useState<'mst' | 'end_sem' | 'quiz'>('mst')
   const [config, setConfig] = useState<ExamSessionConfig>(defaultExamConfigs.mst)
-  const [students, setStudents] = useState<Student[]>(defaultStudents)
-  const [courses, setCourses] = useState<Course[]>(defaultCourses)
-  const [rooms, setRooms] = useState<Room[]>(defaultRooms)
-  const [teachers, setTeachers] = useState<Teacher[]>(defaultTeachers)
+  const [students, setStudents] = useState<Student[]>(defaultMstStudents)
+  const [sectionRotation, setSectionRotation] = useState<'odd' | 'even'>('odd')
+  const [courses, setCourses] = useState<Course[]>(defaultMstCourses)
+  const [rooms, setRooms] = useState<Room[]>(defaultMstRooms)
+  const [teachers, setTeachers] = useState<Teacher[]>(defaultMstTeachers)
 
   // Scheduling result state
   const [scheduleResult, setScheduleResult] = useState<ScheduleResult | null>(null)
@@ -185,6 +197,19 @@ export default function Page() {
       if (result.slots.length > 0) {
         setSelectedSlotForSeating(result.slots[0].slotId)
       }
+
+      if (result.unscheduledCourses && result.unscheduledCourses.length > 0) {
+        const errorList = result.unscheduledCourses
+          .map((item) => `• ${item.course.code} (${item.course.name}): ${item.reason}`)
+          .join('\n')
+        window.alert(
+          `[ExamGrid Error - Slot Limit Exceeded]\n\n` +
+          `${result.unscheduledCourses.length} course(s) could not be scheduled because their semester course count exceeds total available slots:\n\n` +
+          errorList +
+          `\n\nThese extra courses were NOT scheduled. Please increase total days or slots per day.`
+        )
+      }
+
       setTimeout(() => {
         setRunning(false)
         setProgress(100)
@@ -215,6 +240,32 @@ export default function Page() {
   const handlePresetSwitch = (type: 'mst' | 'quiz') => {
     setSelectedPresetType(type)
     setConfig(defaultExamConfigs[type])
+    if (type === 'quiz') {
+      setCourses(defaultQuizCourses)
+      setRooms(defaultQuizRooms)
+      setStudents(defaultQuizStudents)
+      setTeachers(defaultQuizTeachers)
+    } else {
+      setCourses(defaultMstCourses)
+      setRooms(defaultMstRooms)
+      setStudents(defaultMstStudents)
+      setTeachers(defaultMstTeachers)
+    }
+  }
+
+  const handleSectionRotationChange = (rotation: 'odd' | 'even') => {
+    const rotatedStudents = new Map(generateAllStudents(rotation).map((student) => [student.id, student]))
+    const nextStudents = students.map((student) => {
+      const rotated = rotatedStudents.get(student.id)
+      return rotated
+        ? { ...student, semester: rotated.semester, batch: rotated.batch, enrolledCourseCodes: rotated.enrolledCourseCodes }
+        : student
+    })
+    setSectionRotation(rotation)
+    setStudents(nextStudents)
+    const result = generateSchedule(config, nextStudents, courses, rooms, teachers)
+    setScheduleResult(result)
+    if (result.slots.length > 0) setSelectedSlotForSeating(result.slots[0].slotId)
   }
 
   const navigateToSeatingSlot = (slotId: string) => {
@@ -361,6 +412,21 @@ export default function Page() {
           </div>
 
           <div className="flex items-center gap-2 md:gap-3">
+            <div className="flex items-center gap-1 rounded-xl border border-border bg-card p-1">
+              <span className="px-1.5 text-[9px] font-semibold text-muted-foreground sm:px-2 sm:text-[10px]">A: {sectionRotation} · B: {sectionRotation === 'odd' ? 'even' : 'odd'}</span>
+              {(['odd', 'even'] as const).map((rotation) => (
+                <button
+                  key={rotation}
+                  type="button"
+                  onClick={() => handleSectionRotationChange(rotation)}
+                  aria-pressed={sectionRotation === rotation}
+                  className={`rounded-lg px-2.5 py-1.5 text-[10px] font-bold capitalize ${sectionRotation === rotation ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+                >
+                  {rotation}
+                </button>
+              ))}
+            </div>
+
             {/* Manage Parameters / All Inputs Button */}
             <button
               onClick={() => setActiveTab('inputs')}
@@ -374,9 +440,13 @@ export default function Page() {
               <span className="hidden sm:inline">All Inputs & Setup</span>
             </button>
 
-            {/* Generate Student Timetable PDF Quick Action */}
+            {/* Generate PDF Quick Actions */}
             {scheduleResult && (
-              <StudentTimetablePdf scheduleResult={scheduleResult} config={config} />
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <StudentTimetablePdf scheduleResult={scheduleResult} config={config} />
+                <StudentSeatingPlanPdf scheduleResult={scheduleResult} config={config} />
+                <FacultyDutyChartPdf scheduleResult={scheduleResult} config={config} />
+              </div>
             )}
 
             {/* Solver Run Button */}

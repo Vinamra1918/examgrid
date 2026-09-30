@@ -190,7 +190,7 @@ const sem7Courses = ['CS-701-E2', 'CS-702-E3', 'CS-703-E4', 'CS-704-LAB', 'IN-70
 // Semester 8 (4th Year – Sem B Even) Course Codes
 const sem8Courses = ['CS-801-E5', 'CS-802-E6', 'IN-801-LAB', 'PR-801-LAB']
 
-export function generateAllStudents(): Student[] {
+export function generateAllStudents(rotation: 'odd' | 'even' = 'odd'): Student[] {
   const result: Student[] = []
 
   // Helper to map roll numbers cleanly for a given year prefix without corrupting branch or lateral-entry codes
@@ -236,9 +236,10 @@ export function generateAllStudents(): Student[] {
       }
       seenRolls.add(rollNo)
 
-      const isSemA = item.section.startsWith('A')
-      const semester = isSemA ? semA : semB
-      const courses = isSemA ? coursesA : coursesB
+      const isSectionA = item.section.startsWith('A')
+      const followsOddSemester = isSectionA === (rotation === 'odd')
+      const semester = followsOddSemester ? semA : semB
+      const courses = followsOddSemester ? coursesA : coursesB
 
       result.push({
         id: `s_${idPrefix}_${index + 1}`,
@@ -246,6 +247,7 @@ export function generateAllStudents(): Student[] {
         name: item.name,
         year: yearLabel,
         semester,
+        batch: `Section ${isSectionA ? 'A' : 'B'}`,
         branch: 'CSE',
         enrolledCourseCodes: courses,
         included: true,

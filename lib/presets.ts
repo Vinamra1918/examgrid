@@ -12,88 +12,97 @@ import { generateAllStudents } from './students-data'
 // Generate full real student cohort for 2nd, 3rd, and 4th Year (Sections A & B)
 export const defaultStudents: Student[] = generateAllStudents()
 
-// Comprehensive CSE Subject Catalog (Semester 3 to Semester 8)
-export const defaultCourses: Course[] = [
-  // =========================================================================
-  // Semester 3 (II Year – Semester 'A' / Odd)
-  // =========================================================================
+// =========================================================================
+// MST (Theory) Courses Dataset
+// =========================================================================
+export const defaultMstCourses: Course[] = [
+  // Semester 3 (II Year – Sem A / Odd)
   { id: 'c301', code: 'MA-301', name: 'Mathematics-III (BSC)', year: '2nd Year', semester: 'Semester 3 (Sem A - Odd)', department: 'Applied Mathematics', type: 'theory', durationMinutes: 60, included: true },
   { id: 'c302', code: 'CS-301', name: 'Object Oriented Programming Systems (PCC)', year: '2nd Year', semester: 'Semester 3 (Sem A - Odd)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
   { id: 'c303', code: 'CS-302', name: 'Computer Architecture (PCC)', year: '2nd Year', semester: 'Semester 3 (Sem A - Odd)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
   { id: 'c304', code: 'EC-301', name: 'Microprocessors and Microcontrollers (ESC)', year: '2nd Year', semester: 'Semester 3 (Sem A - Odd)', department: 'ECE', type: 'theory', durationMinutes: 60, included: true },
   { id: 'c305', code: 'HU-301', name: 'Economics for Engineers (HSMC)', year: '2nd Year', semester: 'Semester 3 (Sem A - Odd)', department: 'Humanities', type: 'theory', durationMinutes: 60, included: true },
+
+  // Semester 4 (II Year – Sem B / Even)
+  { id: 'c401', code: 'CS-401', name: 'Discrete Structures (PCC)', year: '2nd Year', semester: 'Semester 4 (Sem B - Even)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
+  { id: 'c402', code: 'MA-401', name: 'Mathematics-IV (BSC)', year: '2nd Year', semester: 'Semester 4 (Sem B - Even)', department: 'Applied Mathematics', type: 'theory', durationMinutes: 60, included: true },
+  { id: 'c403', code: 'CS-402', name: 'Data Structures (PCC)', year: '2nd Year', semester: 'Semester 4 (Sem B - Even)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
+  { id: 'c404', code: 'CS-403', name: 'Agile Software Methodology (PCC)', year: '2nd Year', semester: 'Semester 4 (Sem B - Even)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
+  { id: 'c405', code: 'EC-401', name: 'Digital Communication (OEC)', year: '2nd Year', semester: 'Semester 4 (Sem B - Even)', department: 'ECE', type: 'theory', durationMinutes: 60, included: true },
+  { id: 'c410', code: 'HU-401', name: 'Values, Humanities and Professional Ethics (HSBC)', year: '2nd Year', semester: 'Semester 4 (Sem B - Even)', department: 'Humanities', type: 'theory', durationMinutes: 60, included: true },
+  { id: 'c411', code: 'MC-401', name: 'Constitution of India (MC)', year: '2nd Year', semester: 'Semester 4 (Sem B - Even)', department: 'Humanities', type: 'theory', durationMinutes: 60, included: true },
+
+  // Semester 5 (III Year – Sem A / Odd)
+  { id: 'c501', code: 'CS-501', name: 'Theory of Computation', year: '3rd Year', semester: 'Semester 5 (Sem A - Odd)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
+  { id: 'c502', code: 'CS-502', name: 'Information Security', year: '3rd Year', semester: 'Semester 5 (Sem A - Odd)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
+  { id: 'c503', code: 'CS-503', name: 'Computer Networks', year: '3rd Year', semester: 'Semester 5 (Sem A - Odd)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
+  { id: 'c504', code: 'CS-504', name: 'Operating Systems', year: '3rd Year', semester: 'Semester 5 (Sem A - Odd)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
+  { id: 'c508', code: 'HU-501', name: 'Essence of Indian Knowledge Tradition', year: '3rd Year', semester: 'Semester 5 (Sem A - Odd)', department: 'Humanities', type: 'theory', durationMinutes: 60, included: true },
+
+  // Semester 6 (III Year – Sem B / Even)
+  { id: 'c601', code: 'CS-601', name: 'Machine Learning', year: '3rd Year', semester: 'Semester 6 (Sem B - Even)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
+  { id: 'c602', code: 'CS-602', name: 'Data Base Management Systems', year: '3rd Year', semester: 'Semester 6 (Sem B - Even)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
+  { id: 'c603', code: 'CS-603', name: 'Design and Analysis of Algorithms', year: '3rd Year', semester: 'Semester 6 (Sem B - Even)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
+  { id: 'c604', code: 'CS-604-E1', name: 'Elective-I: Data Science & Engineering / AI / Software Architecture', year: '3rd Year', semester: 'Semester 6 (Sem B - Even)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
+
+  // Semester 7 (IV Year – Sem A / Odd)
+  { id: 'c701', code: 'CS-701-E2', name: 'Elective-II: Computational Intelligence / Adv Data Structures / Cloud Computing', year: '4th Year', semester: 'Semester 7 (Sem A - Odd)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
+  { id: 'c702', code: 'CS-702-E3', name: 'Elective-III: Deep Learning / Advanced Algorithms / Big Data / HCI', year: '4th Year', semester: 'Semester 7 (Sem A - Odd)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
+  { id: 'c703', code: 'CS-703-E4', name: 'Elective-IV: Reinforcement Learning / Advanced Databases / Cyber Security / NLP', year: '4th Year', semester: 'Semester 7 (Sem A - Odd)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
+
+  // Semester 8 (IV Year – Sem B / Even)
+  { id: 'c801', code: 'CS-801-E5', name: 'Elective-V: Bioinformatics / HPC / ML for Security / Game Design / DSP', year: '4th Year', semester: 'Semester 8 (Sem B - Even)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
+  { id: 'c802', code: 'CS-802-E6', name: 'Elective-VI: Advanced OS / Project Management / Image Processing / Blockchain', year: '4th Year', semester: 'Semester 8 (Sem B - Even)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
+]
+
+// =========================================================================
+// Lab Quiz & Practical Evaluations Courses Dataset
+// =========================================================================
+export const defaultQuizCourses: Course[] = [
+  // Semester 3 Labs
   { id: 'c306', code: 'CS-301-LAB', name: 'Object Oriented Programming Lab (LC)', year: '2nd Year', semester: 'Semester 3 (Sem A - Odd)', department: 'CSE', type: 'lab_quiz', durationMinutes: 60, included: true },
   { id: 'c307', code: 'CS-302-LAB', name: 'Computer Architecture Lab (LC)', year: '2nd Year', semester: 'Semester 3 (Sem A - Odd)', department: 'CSE', type: 'lab_quiz', durationMinutes: 60, included: true },
   { id: 'c308', code: 'EC-301-LAB', name: 'Microprocessors and Microcontrollers Lab (ESC-LC)', year: '2nd Year', semester: 'Semester 3 (Sem A - Odd)', department: 'ECE', type: 'lab_quiz', durationMinutes: 60, included: true },
   { id: 'c309', code: 'CS-303-LAB', name: 'Design Thinking Lab (LC)', year: '2nd Year', semester: 'Semester 3 (Sem A - Odd)', department: 'CSE', type: 'lab_quiz', durationMinutes: 60, included: true },
   { id: 'c310', code: 'EC-302-LAB', name: 'Electronics Workshop (ESC-LC)', year: '2nd Year', semester: 'Semester 3 (Sem A - Odd)', department: 'ECE', type: 'lab_quiz', durationMinutes: 60, included: true },
 
-  // =========================================================================
-  // Semester 4 (II Year – Semester 'B' / Even)
-  // =========================================================================
-  { id: 'c401', code: 'CS-401', name: 'Discrete Structures (PCC)', year: '2nd Year', semester: 'Semester 4 (Sem B - Even)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
-  { id: 'c402', code: 'MA-401', name: 'Mathematics-IV (BSC)', year: '2nd Year', semester: 'Semester 4 (Sem B - Even)', department: 'Applied Mathematics', type: 'theory', durationMinutes: 60, included: true },
-  { id: 'c403', code: 'CS-402', name: 'Data Structures (PCC)', year: '2nd Year', semester: 'Semester 4 (Sem B - Even)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
-  { id: 'c404', code: 'CS-403', name: 'Agile Software Methodology (PCC)', year: '2nd Year', semester: 'Semester 4 (Sem B - Even)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
-  { id: 'c405', code: 'EC-401', name: 'Digital Communication (OEC)', year: '2nd Year', semester: 'Semester 4 (Sem B - Even)', department: 'ECE', type: 'theory', durationMinutes: 60, included: true },
+  // Semester 4 Labs
   { id: 'c406', code: 'CS-402-LAB', name: 'Data Structures Lab (LC)', year: '2nd Year', semester: 'Semester 4 (Sem B - Even)', department: 'CSE', type: 'lab_quiz', durationMinutes: 60, included: true },
   { id: 'c407', code: 'CS-404-LAB', name: 'Software Design Lab (LC)', year: '2nd Year', semester: 'Semester 4 (Sem B - Even)', department: 'CSE', type: 'lab_quiz', durationMinutes: 60, included: true },
   { id: 'c408', code: 'EC-401-LAB', name: 'Digital Communication Lab (OEC)', year: '2nd Year', semester: 'Semester 4 (Sem B - Even)', department: 'ECE', type: 'lab_quiz', durationMinutes: 60, included: true },
   { id: 'c409', code: 'CS-405-LAB', name: 'Mobile Application Development Lab (LC)', year: '2nd Year', semester: 'Semester 4 (Sem B - Even)', department: 'CSE', type: 'lab_quiz', durationMinutes: 60, included: true },
-  { id: 'c410', code: 'HU-401', name: 'Values, Humanities and Professional Ethics (HSBC)', year: '2nd Year', semester: 'Semester 4 (Sem B - Even)', department: 'Humanities', type: 'theory', durationMinutes: 60, included: true },
-  { id: 'c411', code: 'MC-401', name: 'Constitution of India (MC)', year: '2nd Year', semester: 'Semester 4 (Sem B - Even)', department: 'Humanities', type: 'theory', durationMinutes: 60, included: true },
   { id: 'c412', code: 'IN-401-LAB', name: 'Lab: Mandatory 2-Week Internship / Training Evaluation', year: '2nd Year', semester: 'Semester 4 (Sem B - Even)', department: 'CSE', type: 'lab_quiz', durationMinutes: 60, included: true },
 
-  // =========================================================================
-  // Semester 5 (III Year – Semester 'A' / Odd)
-  // =========================================================================
-  { id: 'c501', code: 'CS-501', name: 'Theory of Computation', year: '3rd Year', semester: 'Semester 5 (Sem A - Odd)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
-  { id: 'c502', code: 'CS-502', name: 'Information Security', year: '3rd Year', semester: 'Semester 5 (Sem A - Odd)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
-  { id: 'c503', code: 'CS-503', name: 'Computer Networks', year: '3rd Year', semester: 'Semester 5 (Sem A - Odd)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
-  { id: 'c504', code: 'CS-504', name: 'Operating Systems', year: '3rd Year', semester: 'Semester 5 (Sem A - Odd)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
+  // Semester 5 Labs
   { id: 'c505', code: 'CS-503-LAB', name: 'Computer Networks Lab', year: '3rd Year', semester: 'Semester 5 (Sem A - Odd)', department: 'CSE', type: 'lab_quiz', durationMinutes: 60, included: true },
   { id: 'c506', code: 'CS-504-LAB', name: 'Operating Systems Lab', year: '3rd Year', semester: 'Semester 5 (Sem A - Odd)', department: 'CSE', type: 'lab_quiz', durationMinutes: 60, included: true },
   { id: 'c507', code: 'IN-501-LAB', name: 'Lab: Internship Evaluation - I', year: '3rd Year', semester: 'Semester 5 (Sem A - Odd)', department: 'CSE', type: 'lab_quiz', durationMinutes: 60, included: true },
-  { id: 'c508', code: 'HU-501', name: 'Essence of Indian Knowledge Tradition', year: '3rd Year', semester: 'Semester 5 (Sem A - Odd)', department: 'Humanities', type: 'theory', durationMinutes: 60, included: true },
   { id: 'c509', code: 'PR-501-LAB', name: 'Lab: Mini Project Evaluation', year: '3rd Year', semester: 'Semester 5 (Sem A - Odd)', department: 'CSE', type: 'lab_quiz', durationMinutes: 60, included: true },
 
-  // =========================================================================
-  // Semester 6 (III Year – Semester 'B' / Even)
-  // =========================================================================
-  { id: 'c601', code: 'CS-601', name: 'Machine Learning', year: '3rd Year', semester: 'Semester 6 (Sem B - Even)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
-  { id: 'c602', code: 'CS-602', name: 'Data Base Management Systems', year: '3rd Year', semester: 'Semester 6 (Sem B - Even)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
-  { id: 'c603', code: 'CS-603', name: 'Design and Analysis of Algorithms', year: '3rd Year', semester: 'Semester 6 (Sem B - Even)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
-  { id: 'c604', code: 'CS-604-E1', name: 'Elective-I: Data Science & Engineering / AI / Software Architecture', year: '3rd Year', semester: 'Semester 6 (Sem B - Even)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
+  // Semester 6 Labs
   { id: 'c605', code: 'CS-601-LAB', name: 'Machine Learning Lab', year: '3rd Year', semester: 'Semester 6 (Sem B - Even)', department: 'CSE', type: 'lab_quiz', durationMinutes: 60, included: true },
   { id: 'c606', code: 'CS-603-LAB', name: 'Design and Analysis of Algorithms Lab', year: '3rd Year', semester: 'Semester 6 (Sem B - Even)', department: 'CSE', type: 'lab_quiz', durationMinutes: 60, included: true },
   { id: 'c607', code: 'CS-602-LAB', name: 'Data Base Management Systems Lab', year: '3rd Year', semester: 'Semester 6 (Sem B - Even)', department: 'CSE', type: 'lab_quiz', durationMinutes: 60, included: true },
   { id: 'c608', code: 'CS-605-LAB', name: 'Internet of Things Workshop', year: '3rd Year', semester: 'Semester 6 (Sem B - Even)', department: 'CSE', type: 'lab_quiz', durationMinutes: 60, included: true },
   { id: 'c609', code: 'PR-601-LAB', name: 'Lab: Minor Project Evaluation', year: '3rd Year', semester: 'Semester 6 (Sem B - Even)', department: 'CSE', type: 'lab_quiz', durationMinutes: 60, included: true },
 
-  // =========================================================================
-  // Semester 7 (IV Year – Semester VII / Sem A Odd)
-  // =========================================================================
-  { id: 'c701', code: 'CS-701-E2', name: 'Elective-II: Computational Intelligence / Adv Data Structures / Cloud Computing', year: '4th Year', semester: 'Semester 7 (Sem A - Odd)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
-  { id: 'c702', code: 'CS-702-E3', name: 'Elective-III: Deep Learning / Advanced Algorithms / Big Data / HCI', year: '4th Year', semester: 'Semester 7 (Sem A - Odd)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
-  { id: 'c703', code: 'CS-703-E4', name: 'Elective-IV: Reinforcement Learning / Advanced Databases / Cyber Security / NLP', year: '4th Year', semester: 'Semester 7 (Sem A - Odd)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
+  // Semester 7 Labs
   { id: 'c704', code: 'CS-704-LAB', name: 'Product Development & QA Workshop / System Operations Lab', year: '4th Year', semester: 'Semester 7 (Sem A - Odd)', department: 'CSE', type: 'lab_quiz', durationMinutes: 60, included: true },
   { id: 'c705', code: 'IN-701-LAB', name: 'Lab: Internship Evaluation-II', year: '4th Year', semester: 'Semester 7 (Sem A - Odd)', department: 'CSE', type: 'lab_quiz', durationMinutes: 60, included: true },
   { id: 'c706', code: 'PR-701-LAB', name: 'Lab: Major Project Phase-I (AB group) / Phase-II (BA group)', year: '4th Year', semester: 'Semester 7 (Sem A - Odd)', department: 'CSE', type: 'lab_quiz', durationMinutes: 60, included: true },
 
-  // =========================================================================
-  // Semester 8 (IV Year – Semester VIII / Sem B Even)
-  // =========================================================================
-  { id: 'c801', code: 'CS-801-E5', name: 'Elective-V: Bioinformatics / HPC / ML for Security / Game Design / DSP', year: '4th Year', semester: 'Semester 8 (Sem B - Even)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
-  { id: 'c802', code: 'CS-802-E6', name: 'Elective-VI: Advanced OS / Project Management / Image Processing / Blockchain', year: '4th Year', semester: 'Semester 8 (Sem B - Even)', department: 'CSE', type: 'theory', durationMinutes: 60, included: true },
+  // Semester 8 Labs
   { id: 'c803', code: 'IN-801-LAB', name: 'Lab: Internship Evaluation-III', year: '4th Year', semester: 'Semester 8 (Sem B - Even)', department: 'CSE', type: 'lab_quiz', durationMinutes: 60, included: true },
   { id: 'c804', code: 'PR-801-LAB', name: 'Lab: Major Project Phase-II (AB group) / Phase-I (BA group)', year: '4th Year', semester: 'Semester 8 (Sem B - Even)', department: 'CSE', type: 'lab_quiz', durationMinutes: 60, included: true },
 ]
 
-// Rooms & Laboratories with exact Bench / Workstation capacity
-export const defaultRooms: Room[] = [
-  // =========================================================================
-  // Lecture Theatres & Classrooms
-  // =========================================================================
+// Combined legacy export
+export const defaultCourses: Course[] = [...defaultMstCourses, ...defaultQuizCourses]
+
+// =========================================================================
+// MST (Lecture Halls & Classrooms) Rooms Dataset
+// =========================================================================
+export const defaultMstRooms: Room[] = [
   {
     id: 'r_lt102',
     name: 'LT-102',
@@ -150,10 +159,12 @@ export const defaultRooms: Room[] = [
     allowSameCourseOnBench: false,
     included: true,
   },
+]
 
-  // =========================================================================
-  // Computer & Specialized Laboratories (Individual Workstation Seats)
-  // =========================================================================
+// =========================================================================
+// Lab Quiz (Computer & Specialized Laboratories) Rooms Dataset
+// =========================================================================
+export const defaultQuizRooms: Room[] = [
   {
     id: 'lab_gcl',
     name: 'GCL (Graphics & Computing Lab)',
@@ -240,6 +251,9 @@ export const defaultRooms: Room[] = [
   },
 ]
 
+// Combined legacy export
+export const defaultRooms: Room[] = [...defaultMstRooms, ...defaultQuizRooms]
+
 // Faculty / Invigilators with Priority Ranks (Complete 25 Department Faculty Roster)
 export const defaultTeachers: Teacher[] = [
   // Professors & Leadership (Priority 1: Senior Leadership)
@@ -274,40 +288,41 @@ export const defaultTeachers: Teacher[] = [
   { id: 't25', name: 'Ms. Teena Dubey', designation: 'Assistant Professor', department: 'CSE', priority: 3, maxDuties: 6, included: true },
 ]
 
-// Default Preset Configurations for MST and Quiz Exam Types
+// Duplicate student and teacher sets for MST and Quiz modes
+export const defaultMstStudents: Student[] = defaultStudents.map((s) => ({ ...s }))
+export const defaultQuizStudents: Student[] = defaultStudents.map((s) => ({ ...s }))
+export const defaultMstTeachers: Teacher[] = defaultTeachers.map((t) => ({ ...t }))
+export const defaultQuizTeachers: Teacher[] = defaultTeachers.map((t) => ({ ...t }))
+
+// Clean initial configurations with NO pre-filled dates/slots so the user picks their own rules from scratch
 export const defaultExamConfigs: Record<'mst' | 'quiz', ExamSessionConfig> = {
   mst: {
-    id: 'cfg_mst_2025',
-    title: 'Mid-Semester Test (MST) - Spring 2025',
+    id: 'cfg_mst_custom',
+    title: '',
     examType: 'mst',
-    startDate: '2025-05-12',
-    endDate: '2025-05-16',
-    holidays: ['2025-05-14'],
-    totalDays: 4,
-    theoryDurationMinutes: 60, // MST Theory Exams are 60 mins (1 Hour)
-    labDurationMinutes: 60, // Lab Quizzes are 60 mins
-    slotsPerDay: [
-      { id: 'slot1', label: 'Slot 1 (Morning Shift)', startTime: '09:30', endTime: '10:30' },
-      { id: 'slot2', label: 'Slot 2 (Afternoon Shift)', startTime: '14:00', endTime: '15:00' },
-    ],
+    startDate: '',
+    endDate: '',
+    holidays: [],
+    totalDays: 0,
+    theoryDurationMinutes: 60,
+    labDurationMinutes: 60,
+    slotsPerDay: [],
+    daySpecificSlots: {},
     seatingMode: 'interleave_two_exams',
     allowTwoExamsInOneRoom: true,
   },
   quiz: {
-    id: 'cfg_quiz_2025',
-    title: 'Department Practical & Lab Evaluations',
+    id: 'cfg_quiz_custom',
+    title: '',
     examType: 'quiz',
-    startDate: '2025-05-20',
-    endDate: '2025-05-22',
+    startDate: '',
+    endDate: '',
     holidays: [],
-    totalDays: 3,
+    totalDays: 0,
     theoryDurationMinutes: 60,
     labDurationMinutes: 60,
-    slotsPerDay: [
-      { id: 'slot1', label: 'Slot 1 (Batch 1)', startTime: '09:00', endTime: '10:00' },
-      { id: 'slot2', label: 'Slot 2 (Batch 2)', startTime: '11:00', endTime: '12:00' },
-      { id: 'slot3', label: 'Slot 3 (Batch 3)', startTime: '14:00', endTime: '15:00' },
-    ],
+    slotsPerDay: [],
+    daySpecificSlots: {},
     seatingMode: 'single_exam_per_bench',
     allowTwoExamsInOneRoom: false,
   },

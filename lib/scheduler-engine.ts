@@ -12,6 +12,13 @@ import {
   TeacherPriority,
 } from './types'
 
+function normalizeSectionLabel(value?: string): string | undefined {
+  if (!value) return undefined
+  const normalized = value.trim().replace(/^(?:section|batch)\s*/i, '')
+  const match = normalized.match(/^([ab])\s*\d*$/i)
+  return match ? `Section ${match[1].toUpperCase()}` : undefined
+}
+
 export function generateSchedule(
   config: ExamSessionConfig,
   students: Student[],
@@ -48,14 +55,40 @@ export function generateSchedule(
     return c.type === 'theory' && !isLabCourse(c)
   })
 
-  // Calculate student enrollment lists for each course
-  const courseEnrollments = new Map<string, Student[]>()
-  targetCourses.forEach((c) => {
-    const enrolled = activeStudentsPool.filter((s) => s.enrolledCourseCodes.includes(c.code))
-    // Sort students deterministically by roll number
-    enrolled.sort((a, b) => a.rollNo.localeCompare(b.rollNo))
-    courseEnrollments.set(c.code, enrolled)
-  })
+  // If no slots are defined yet in configuration (e.g. fresh custom setup), return clean empty schedule
+  const hasConfiguredSlots =
+    (config.slotsPerDay && config.slotsPerDay.length > 0) ||
+    (config.daySpecificSlots && Object.values(config.daySpecificSlots).some((s) => s.length > 0))
+
+  if (!hasConfiguredSlots || targetCourses.length === 0) {
+    const facultyDutyDistribution = teachers.map((t) => ({
+      teacherId: t.id,
+      teacherName: t.name,
+      department: t.department,
+      priority: t.priority,
+      dutiesCount: 0,
+      maxDuties: t.maxDuties,
+      assignedSlotSummaries: [],
+    }))
+
+    if (!hasConfiguredSlots && targetCourses.length > 0) {
+      constraintViolations.push(
+        'No exam shifts/slots configured yet. Please add slots per day in Section 1 to generate the timetable.'
+      )
+    }
+
+    return {
+      config,
+      slots: [],
+      totalExamsScheduled: 0,
+      totalStudentsSeated: 0,
+      totalRoomsUtilized: 0,
+      facultyDutyDistribution,
+      priorityDispersionScore: 100,
+      constraintViolations,
+      generatedAt: new Date().toISOString(),
+    }
+  }
 
   // 2. Select compatible rooms based on exam type
   const activeRooms = activeRoomsPool.filter((r) => {
@@ -63,6 +96,38 @@ export function generateSchedule(
       return r.type === 'lab'
     }
     return r.type === 'hall' || r.type === 'classroom'
+  })
+
+  // Helper to extract a normalized semester identifier e.g. "Semester 3" or "3"
+  const getSemKey = (sem?: string, year?: string): string => {
+    if (sem) {
+      const match = sem.match(/(?:Semester|Sem)\s*(\d+)/i)
+      if (match) return `Sem_${match[1]}`
+    }
+    if (year === '1st Year') return 'Sem_1'
+    if (year === '2nd Year') return 'Sem_3'
+    if (year === '3rd Year') return 'Sem_5'
+    if (year === '4th Year') return 'Sem_7'
+    return sem || year || 'General'
+  }
+
+  // Calculate student enrollment lists for each course:
+  // Inherently, all active students of a semester sit in all exams conducted for that semester.
+  const courseEnrollments = new Map<string, Student[]>()
+  targetCourses.forEach((c) => {
+    const courseSemKey = getSemKey(c.semester, c.year)
+    const enrolled = activeStudentsPool.filter((s) => {
+      const studentSemKey = getSemKey(s.semester, s.year)
+      if (studentSemKey === courseSemKey) return true
+      // Also match if student explicitly has the course code in enrolledCourseCodes
+      if (s.enrolledCourseCodes && s.enrolledCourseCodes.includes(c.code)) return true
+      // Or fallback to same academic year if semester is generic
+      return s.year === c.year && (!c.semester || !s.semester)
+    })
+
+    // Sort students deterministically by roll number
+    enrolled.sort((a, b) => a.rollNo.localeCompare(b.rollNo, undefined, { numeric: true }))
+    courseEnrollments.set(c.code, enrolled)
   })
 
   // If no specific lab rooms found for quiz, use classrooms
@@ -133,31 +198,71 @@ export function generateSchedule(
     }
   }
 
+  // -------------------------------------------------------------------------
+  // VALIDATE SEMESTER COURSE COUNT AGAINST TOTAL POSSIBLE SLOTS
+  // A semester cohort can only have 1 exam per slot. If course count > total possible slots,
+  // flag an error, report the violation, and prevent extra courses from scheduling.
+  // -------------------------------------------------------------------------
+  let totalPossibleSlotsInSession = 0
+  examDates.forEach((d) => {
+    const daySlots = (config.daySpecificSlots && config.daySpecificSlots[d.dayNumber]) || config.slotsPerDay || []
+    totalPossibleSlotsInSession += daySlots.length
+  })
+
+  // Group active target courses by normalized semester
+  const coursesBySemKey = new Map<string, Course[]>()
+  targetCourses.forEach((c) => {
+    const semKey = getSemKey(c.semester, c.year)
+    const list = coursesBySemKey.get(semKey) || []
+    list.push(c)
+    coursesBySemKey.set(semKey, list)
+  })
+
+  const unscheduledCoursesList: { course: Course; reason: string }[] = []
+  const validTargetCoursesSet = new Set<string>()
+
+  coursesBySemKey.forEach((semCourses, semKey) => {
+    if (semCourses.length > totalPossibleSlotsInSession) {
+      const excessCount = semCourses.length - totalPossibleSlotsInSession
+      const semDisplayName = semCourses[0].semester || semCourses[0].year || semKey
+      const extraCourses = semCourses.slice(totalPossibleSlotsInSession)
+      const allowedCourses = semCourses.slice(0, totalPossibleSlotsInSession)
+
+      allowedCourses.forEach((c) => validTargetCoursesSet.add(c.id))
+
+      extraCourses.forEach((c) => {
+        unscheduledCoursesList.push({
+          course: c,
+          reason: `Total courses (${semCourses.length}) for ${semDisplayName} exceeds total available session slots (${totalPossibleSlotsInSession}). Excluded from scheduling.`,
+        })
+      })
+
+      constraintViolations.push(
+        `Slot Capacity Error: ${semDisplayName} has ${semCourses.length} courses, but the exam session only has ${totalPossibleSlotsInSession} total slots across ${examDates.length} days. ${excessCount} course(s) (${extraCourses.map((c) => c.code).join(', ')}) were NOT scheduled. Please increase total days or slots per day.`
+      )
+    } else {
+      semCourses.forEach((c) => validTargetCoursesSet.add(c.id))
+    }
+  })
+
+  const schedulableCourses = targetCourses.filter((c) => validTargetCoursesSet.has(c.id))
+
   const scheduledSlots: ScheduledSlot[] = []
 
-  // Group courses by Year and sort each year cohort by priority (lower number = higher priority)
-  // When priorities are equal, randomize order
+  // Group schedulable courses by Year
   const coursesByYear = new Map<AcademicYear, Course[]>()
   const yearsList: AcademicYear[] = ['1st Year', '2nd Year', '3rd Year', '4th Year']
   yearsList.forEach((y) => coursesByYear.set(y, []))
-  targetCourses.forEach((c) => {
+  schedulableCourses.forEach((c) => {
     const list = coursesByYear.get(c.year) || []
     list.push(c)
     coursesByYear.set(c.year, list)
   })
 
-  // Queue of courses remaining to be scheduled, sorted by priority + random tie breaker
+  // Queue of courses remaining to be scheduled
   const remainingCourseQueues = new Map<AcademicYear, Course[]>()
   yearsList.forEach((y) => {
     const yearCourses = [...(coursesByYear.get(y) || [])]
-    yearCourses.sort((a, b) => {
-      const prioA = a.priority !== undefined && a.priority !== null ? a.priority : 999
-      const prioB = b.priority !== undefined && b.priority !== null ? b.priority : 999
-      if (prioA !== prioB) {
-        return prioA - prioB // Higher priority (1, 2, 3...) first
-      }
-      return Math.random() - 0.5 // Random order if priority is same
-    })
     remainingCourseQueues.set(y, yearCourses)
   })
 
@@ -189,93 +294,34 @@ export function generateSchedule(
   })
 
   // -------------------------------------------------------------------------
-  // STEP 1: PRE-SCHEDULE BOUND COURSES
-  // Search across all days to find the day and slot pair with the MINIMUM time difference
+  // STEP 0: PRE-SCHEDULE USER-FIXED / PINNED COURSES
+  // If the user has explicitly fixed/pinned any course to a specific (day, slot),
+  // place it immediately and remove it from remainingCourseQueues.
   // -------------------------------------------------------------------------
-  for (const year of yearsList) {
-    const q = remainingCourseQueues.get(year) || []
-    if (q.length === 0) continue
-
-    let idx = 0
-    while (idx < q.length) {
-      const courseA = q[idx]
-      const bNum = courseA.bindingGroup
-      let boundIdx = -1
-
-      if (bNum !== undefined && bNum !== null && bNum > 0) {
-        boundIdx = q.findIndex(
-          (c, i) =>
-            i > idx &&
-            c.bindingGroup === bNum &&
-            (c.semester === courseA.semester || !c.semester || !courseA.semester)
-        )
-      } else if (courseA.pairedWithCourseCode) {
-        boundIdx = q.findIndex((c, i) => i > idx && c.code === courseA.pairedWithCourseCode)
-      }
-
-      if (boundIdx > idx) {
-        const c1 = q.splice(idx, 1)[0]
-        const c2 = q.splice(boundIdx - 1, 1)[0] // adjusted for previous splice
-
-        // Find the BEST day across the entire session that has 2 available slots with MINIMUM time difference
-        let bestDay = -1
-        let bestSlotA = -1
-        let bestSlotB = -1
-        let minGapAcrossSession = Infinity
-
-        for (const dateItem of examDates) {
-          const dNum = dateItem.dayNumber
-          const daySlots = (config.daySpecificSlots && config.daySpecificSlots[dNum]) || config.slotsPerDay || []
-          const dayGrid = timetableGrid.get(dNum)!
-
-          // Find empty or non-conflicting slots for this cohort on this day
-          for (let sA = 0; sA < daySlots.length; sA++) {
-            for (let sB = sA + 1; sB < daySlots.length; sB++) {
-              const coursesInSA = dayGrid.get(sA) || []
-              const coursesInSB = dayGrid.get(sB) || []
-
-              // Ensure cohort does not already have an exam in sA or sB
-              const hasConflictA = coursesInSA.some((c) => c.year === year)
-              const hasConflictB = coursesInSB.some((c) => c.year === year)
-
-              if (!hasConflictA && !hasConflictB) {
-                const timeA = daySlots[sA].startTime || '09:30'
-                const timeB = daySlots[sB].startTime || '14:00'
-                const [hA, mA] = timeA.split(':').map(Number)
-                const [hB, mB] = timeB.split(':').map(Number)
-                const gapMins = (hB * 60 + mB) - (hA * 60 + mA)
-
-                if (gapMins >= 0 && gapMins < minGapAcrossSession) {
-                  minGapAcrossSession = gapMins
-                  bestDay = dNum
-                  bestSlotA = sA
-                  bestSlotB = sB
-                }
-              }
-            }
+  if (config.fixedCourseSlots && Object.keys(config.fixedCourseSlots).length > 0) {
+    for (const [courseCode, fixInfo] of Object.entries(config.fixedCourseSlots)) {
+      const { dayNumber, slotIndex } = fixInfo
+      const dayGrid = timetableGrid.get(dayNumber)
+      if (dayGrid && dayGrid.has(slotIndex)) {
+        // Find course in remainingCourseQueues
+        for (const year of yearsList) {
+          const q = remainingCourseQueues.get(year) || []
+          const cIdx = q.findIndex((c) => c.code.toUpperCase() === courseCode.toUpperCase())
+          if (cIdx !== -1) {
+            const course = q.splice(cIdx, 1)[0]
+            dayGrid.get(slotIndex)!.push(course)
+            break
           }
         }
-
-        if (bestDay !== -1 && bestSlotA !== -1 && bestSlotB !== -1) {
-          timetableGrid.get(bestDay)!.get(bestSlotA)!.push(c1)
-          timetableGrid.get(bestDay)!.get(bestSlotB)!.push(c2)
-        } else {
-          // If no day had 2 free slots, put them back into regular priority queue
-          q.unshift(c2)
-          q.unshift(c1)
-          idx++
-        }
-      } else {
-        idx++
       }
     }
   }
 
   // -------------------------------------------------------------------------
-  // STEP 2: FILL REGULAR COURSES ROUND-ROBIN
-  // PASS 1: Fill Slot 1 (Shift 0) for Day 1, Day 2, Day 3, ... Day N
-  // PASS 2: Return to Day 1, Day 2, ... and Fill Slot 2 (Shift 1)
-  // PASS 3: Fill Slot 3, etc.
+  // STEP 1: FILL REGULAR COURSES ROUND-ROBIN
+  // PASS 1: Fill Morning Slot (Shift 0) for Day 1, Day 2, Day 3, ... Day N
+  // PASS 2: Fill Last Slot (Shift N-1) for Day 1, Day 2, Day 3, ... Day N
+  // PASS 3+: Fill Middle Slots (Shift 1, Shift 2...) for Day 1, Day 2, ... Day N
   // -------------------------------------------------------------------------
   // Determine max slots on any day
   let maxSlotsInSession = 1
@@ -286,11 +332,28 @@ export function generateSchedule(
     }
   })
 
-  for (let sIdx = 0; sIdx < maxSlotsInSession; sIdx++) {
+  // Helper to determine the target slot index for a given day in each pass
+  // Pass 0 -> Morning Slot (0)
+  // Pass 1 -> Last Slot (totalSlotsOnDay - 1)
+  // Pass 2+ -> Middle Slots (1, 2, ...)
+  const getSlotIndexForPass = (passNumber: number, totalSlotsOnDay: number): number => {
+    if (totalSlotsOnDay <= 1) return 0
+    if (passNumber === 0) return 0 // Morning (first slot)
+    if (passNumber === 1) return totalSlotsOnDay - 1 // Last slot (e.g. Afternoon shift)
+    // Pass 2 onwards: fill middle slots (1, 2, ..., totalSlotsOnDay - 2)
+    const middleIndex = passNumber - 1
+    if (middleIndex < totalSlotsOnDay - 1) {
+      return middleIndex
+    }
+    return -1
+  }
+
+  for (let pass = 0; pass < maxSlotsInSession; pass++) {
     for (const dateItem of examDates) {
       const dNum = dateItem.dayNumber
       const daySlots = (config.daySpecificSlots && config.daySpecificSlots[dNum]) || config.slotsPerDay || []
-      if (sIdx >= daySlots.length) continue // this day doesn't have this slot index
+      const sIdx = getSlotIndexForPass(pass, daySlots.length)
+      if (sIdx < 0 || sIdx >= daySlots.length) continue
 
       const dayGrid = timetableGrid.get(dNum)!
       const currentCoursesInSlot = dayGrid.get(sIdx) || []
@@ -371,11 +434,19 @@ export function generateSchedule(
         }
       }
 
-      if (bestDay !== -1 && bestSlot !== -1) {
+      if (bestDay !== -1 && bestSlot !== -1 && timetableGrid.get(bestDay)?.get(bestSlot)) {
         timetableGrid.get(bestDay)!.get(bestSlot)!.push(candidate)
       } else {
-        // As absolute fallback, place in Day 1 Slot 0
-        timetableGrid.get(examDates[0].dayNumber)!.get(0)!.push(candidate)
+        // As absolute fallback, place in the first available slot in timetableGrid
+        let placed = false
+        for (const [_, slotMap] of timetableGrid.entries()) {
+          for (const [_, courseList] of slotMap.entries()) {
+            courseList.push(candidate)
+            placed = true
+            break
+          }
+          if (placed) break
+        }
       }
     }
   }
@@ -775,22 +846,23 @@ export function generateSchedule(
         }
       }
 
-      // Calculate slot time range
-      const maxCourseDuration = Math.max(
-        ...slotCourses.map(
-          (c) =>
-            c.durationMinutes ||
-            (c.type === 'lab_quiz'
-              ? config.labDurationMinutes || 60
-              : config.theoryDurationMinutes || 60)
-        ),
-        60
-      )
+      // Calculate slot time range & duration directly from slotConfig
+      let slotDurationMinutes = 60
+      if (slotConfig.startTime && slotConfig.endTime) {
+        const [sh, sm] = slotConfig.startTime.split(':').map(Number)
+        const [eh, em] = slotConfig.endTime.split(':').map(Number)
+        const diff = (eh * 60 + em) - (sh * 60 + sm)
+        if (diff > 0) slotDurationMinutes = diff
+      } else if (config.examType === 'quiz') {
+        slotDurationMinutes = config.labDurationMinutes || 60
+      } else {
+        slotDurationMinutes = config.theoryDurationMinutes || 60
+      }
 
       let computedEndTime = slotConfig.endTime
       if (!computedEndTime && slotConfig.startTime) {
         const [h, m] = slotConfig.startTime.split(':').map((v) => parseInt(v, 10))
-        const endTotalMins = (h || 9) * 60 + (m || 0) + maxCourseDuration
+        const endTotalMins = (h || 9) * 60 + (m || 0) + slotDurationMinutes
         const endH = String(Math.floor(endTotalMins / 60) % 24).padStart(2, '0')
         const endM = String(endTotalMins % 60).padStart(2, '0')
         computedEndTime = `${endH}:${endM}`
@@ -804,19 +876,21 @@ export function generateSchedule(
         timeRange: `${slotConfig.startTime} – ${computedEndTime || '10:30'}`,
         examType: config.examType,
         scheduledCourses: slotCourses.map((c) => {
-          const duration =
-            c.durationMinutes ||
-            (c.type === 'lab_quiz'
-              ? config.labDurationMinutes || 60
-              : config.theoryDurationMinutes || 60)
           return {
             code: c.code,
             name: c.name,
             year: c.year,
             semester: c.semester,
             type: c.type,
-            durationMinutes: duration,
+            durationMinutes: slotDurationMinutes,
             studentCount: (courseEnrollments.get(c.code) || []).length,
+            sections: Array.from(
+              new Set(
+                (courseEnrollments.get(c.code) || [])
+                  .map((student) => normalizeSectionLabel(student.batch))
+                  .filter((section): section is string => Boolean(section))
+              )
+            ),
           }
         }),
         roomAllocations,
@@ -869,6 +943,7 @@ export function generateSchedule(
     facultyDutyDistribution,
     priorityDispersionScore,
     constraintViolations,
+    unscheduledCourses: unscheduledCoursesList,
     generatedAt: new Date().toISOString(),
   }
 }

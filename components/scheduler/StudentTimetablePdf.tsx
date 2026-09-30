@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState } from 'react'
 import {
@@ -41,12 +41,19 @@ interface TimetableRow {
     name: string
     year: string
     semester: string
+    sections: string[]
   }[]
 }
 
 // ---------------------------------------------------------------------------
 // Data Transformation helpers
 // ---------------------------------------------------------------------------
+
+function normalizeSectionLabel(value: string): string | undefined {
+  const normalized = value.trim().replace(/^(?:section|batch)\s*/i, '')
+  const match = normalized.match(/^([ab])\s*\d*$/i)
+  return match ? `Section ${match[1].toUpperCase()}` : undefined
+}
 
 function formatStudentTimetable(
   slots: ScheduledSlot[],
@@ -72,11 +79,12 @@ function formatStudentTimetable(
     timeRange: slot.timeRange,
     slotLabel: slot.slotLabel,
     courses: slot.matchingCourses.map((c) => ({
-      code: c.code,
-      name: c.name,
-      year: c.year,
-      semester: c.semester || '',
-    })),
+        code: c.code,
+        name: c.name,
+        year: c.year,
+        semester: c.semester || '',
+        sections: (c.sections || []).map(normalizeSectionLabel).filter((section): section is string => Boolean(section)),
+      })),
   }))
 }
 
@@ -98,6 +106,24 @@ function getUniqueSemesters(slots: ScheduledSlot[], yearFilter: string): string[
   return ['All', ...Array.from(sems).sort()]
 }
 
+function formatTimetableDate(date: string): string {
+  const match = date.match(/^(\w{3}), (\w{3}) (\d{1,2}), (\d{4})$/)
+  if (!match) return date
+  const [, dayAbbreviation, month, day, year] = match
+  const weekdays: Record<string, string> = {
+    Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday',
+    Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday',
+  }
+  return `${day.padStart(2, '0')}-${month}-${year}\n${weekdays[dayAbbreviation] || dayAbbreviation}`
+}
+
+function formatYearHeading(year: string): string {
+  const romanYear: Record<string, string> = {
+    '1st Year': 'I', '2nd Year': 'II', '3rd Year': 'III', '4th Year': 'IV',
+  }
+  return `B.Tech ${romanYear[year] || year} Year`
+}
+
 // ---------------------------------------------------------------------------
 // PDF Generation
 // ---------------------------------------------------------------------------
@@ -108,190 +134,133 @@ async function generateStudentTimetablePdf(
   config: ExamSessionConfig
 ): Promise<void> {
   const { default: jsPDF } = await import('jspdf')
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  await import('jspdf-autotable')
-
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  const { default: autoTable } = await import('jspdf-autotable')
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
   const pageW = doc.internal.pageSize.getWidth()
-  const marginL = 18
-  const marginR = 18
+  const pageH = doc.internal.pageSize.getHeight()
+  const marginL = 8
+  const marginR = 8
   const contentW = pageW - marginL - marginR
-  let y = 15
-
-  // Header
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(13)
-  doc.text(options.instituteName, pageW / 2, y, { align: 'center' })
-  y += 6
-
-  doc.setFontSize(11)
-  doc.text(options.departmentName, pageW / 2, y, { align: 'center' })
-  y += 5
-
-  doc.setFontSize(10)
-  const titleLines = doc.splitTextToSize(options.timetableTitle, contentW)
-  doc.text(titleLines, pageW / 2, y, { align: 'center' })
-  y += titleLines.length * 5
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9.5)
-  doc.text('Academic Session: ' + options.academicSession, pageW / 2, y, { align: 'center' })
-  y += 8
-
   const examTypeLabel =
     config.examType === 'mst'
       ? 'B.Tech. Mid Semester Test (MST)'
       : config.examType === 'quiz'
       ? 'B.Tech. Lab Quiz / Practical Evaluation'
       : 'B.Tech. Examination'
+  const sections = ['Section A', 'Section B'] as const
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  doc.text(examTypeLabel, pageW / 2, y, { align: 'center' })
-  y += 6
+  sections.forEach((section, sectionIndex) => {
+    if (sectionIndex > 0) doc.addPage('a4', 'landscape')
+    const y = 9
+    const yearColumns = Array.from(new Set(rows.flatMap((row) => row.courses.map((course) => course.year)))).sort()
 
-  const today = new Date()
-  const dateStr =
-    'Date: ' +
-    String(today.getDate()).padStart(2, '0') +
-    '-' +
-    String(today.getMonth() + 1).padStart(2, '0') +
-    '-' +
-    today.getFullYear()
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  doc.text(dateStr, pageW - marginR, y, { align: 'right' })
-  y += 6
-
-  doc.setDrawColor(0)
-  doc.setLineWidth(0.4)
-  doc.line(marginL, y, pageW - marginR, y)
-  y += 4
-
-  if (rows.length === 0) {
-    doc.text('No timetable data for the selected filters.', marginL, y + 10)
-    doc.save('student-timetable.pdf')
-    return
-  }
-
-  // Distinct year columns
-  const yearSet = new Set<string>()
-  rows.forEach((r) => r.courses.forEach((c) => yearSet.add(c.year)))
-  const yearColumns = Array.from(yearSet).sort()
-
-  const tableHead = [['Date', 'Time', ...yearColumns]]
-  const tableBody = rows.map((row) => {
-    const yearCells = yearColumns.map((yr) => {
-      const cs = row.courses.filter((c) => c.year === yr)
-      if (cs.length === 0) return '\u2014'
-      return cs.map((c) => c.code + '\n' + c.name).join('\n\n')
-    })
-    return [row.date, row.timeRange, ...yearCells]
-  })
-
-  const yearColW = (contentW - 38 - 36) / Math.max(yearColumns.length, 1)
-  const colStyles: Record<number, object> = {
-    0: { halign: 'center', fontStyle: 'bold', cellWidth: 38 },
-    1: { halign: 'center', cellWidth: 36 },
-  }
-  yearColumns.forEach((_, i) => {
-    colStyles[i + 2] = { halign: 'center', cellWidth: yearColW }
-  })
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ;(doc as any).autoTable({
-    head: tableHead,
-    body: tableBody,
-    startY: y,
-    margin: { left: marginL, right: marginR },
-    tableWidth: contentW,
-    columnStyles: colStyles,
-    headStyles: {
-      fillColor: [200, 210, 230],
-      textColor: [0, 0, 0],
-      fontStyle: 'bold',
-      fontSize: 9,
-      halign: 'center',
-      lineColor: [0, 0, 0],
-      lineWidth: 0.3,
-    },
-    bodyStyles: {
-      fontSize: 8.5,
-      textColor: [0, 0, 0],
-      lineColor: [120, 120, 120],
-      lineWidth: 0.2,
-      cellPadding: 2.5,
-      valign: 'middle',
-      overflow: 'linebreak',
-    },
-    alternateRowStyles: { fillColor: [250, 250, 252] },
-  })
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const finalY: number = (doc as any).lastAutoTable.finalY || y + 40
-  let noteY = finalY + 8
-
-  if (options.notes.length > 0) {
     doc.setFont('helvetica', 'bold')
+    doc.setFontSize(13)
+    doc.text(options.instituteName, pageW / 2, y, { align: 'center' })
+    doc.setFontSize(10)
+    doc.text(options.departmentName, pageW / 2, y + 6, { align: 'center' })
+    doc.setFontSize(10)
+    doc.text(`Time Table (${options.academicSession}) Section: ${section.slice(-1)}`, pageW / 2, y + 12, { align: 'center' })
+    doc.setFontSize(10)
+    doc.text(examTypeLabel, pageW / 2, y + 18, { align: 'center' })
     doc.setFontSize(9)
-    doc.text('Note:', marginL, noteY)
-    noteY += 5
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8.5)
-    options.notes.forEach((note, i) => {
-      const lines = doc.splitTextToSize((i + 1) + '. ' + note, contentW - 5)
-      doc.text(lines, marginL + 3, noteY)
-      noteY += lines.length * 4.5
-    })
-  }
+    doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, pageW - marginR, y + 25, { align: 'right' })
+    doc.setDrawColor(30)
+    doc.setLineWidth(0.35)
+    doc.line(marginL, y + 28, pageW - marginR, y + 28)
 
-  noteY += 6
-  if (options.copyTo.length > 0) {
+    const body = rows.map((row) => [
+      formatTimetableDate(row.date),
+      row.timeRange,
+      ...yearColumns.map((year) => row.courses
+        .filter((course) => course.year === year && course.sections.includes(section))
+        .map((course) => [
+          course.code,
+          course.name,
+        ].join('\n'))
+        .join('\n\n')),
+    ])
+
+    if (yearColumns.length === 0 || body.length === 0) {
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(10)
+      doc.text('No timetable entries match the selected year and semester filters.', marginL, y + 38)
+    } else {
+      autoTable(doc, {
+        head: [['Date', 'Time', ...yearColumns.map(formatYearHeading)]],
+        body,
+        startY: y + 31,
+        margin: { left: marginL, right: marginR, bottom: 42 },
+        tableWidth: contentW,
+        columnStyles: Object.fromEntries([
+          [0, { cellWidth: 30, halign: 'center', fontStyle: 'bold' }],
+          [1, { cellWidth: 38, halign: 'center', fontStyle: 'bold' }],
+          ...yearColumns.map((_, index) => [index + 2, { cellWidth: (contentW - 68) / yearColumns.length, halign: 'center' }]),
+        ]),
+        headStyles: { fillColor: [205, 205, 205], textColor: [0, 0, 0], fontStyle: 'bold', fontSize: 9.5, halign: 'center', valign: 'middle', lineColor: [0, 0, 0], lineWidth: 0.35 },
+        bodyStyles: { fontSize: 9, textColor: [15, 20, 28], lineColor: [70, 70, 70], lineWidth: 0.3, cellPadding: 3, valign: 'middle', overflow: 'linebreak' },
+        alternateRowStyles: { fillColor: [248, 248, 248] },
+        didDrawPage: () => {
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(7)
+          doc.setTextColor(100)
+          doc.text(`${section} Timetable`, marginL, pageH - 5)
+          doc.setTextColor(0)
+        },
+      })
+    }
+
+    const lastTableY = (doc as any).lastAutoTable?.finalY || y + 38
+    let footerY = Math.min(lastTableY + 6, pageH - 38)
+    if (options.notes.length > 0) {
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(8.5)
+      doc.text('Note:', marginL, footerY)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
+      const notes = options.notes.map((note, index) => `${index + 1}. ${note}`)
+      doc.text(doc.splitTextToSize(notes.join('  '), contentW - 12), marginL + 12, footerY)
+      footerY += 12
+    }
+    if (options.copyTo.length > 0) {
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(8)
+      doc.text('Copy to:', marginL, footerY)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(7.5)
+      doc.text(options.copyTo, marginL, footerY + 4)
+    }
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
-    doc.text('Copy to:', marginL, noteY)
-    noteY += 5
-    doc.setFont('helvetica', 'normal')
     doc.setFontSize(8.5)
-    options.copyTo.forEach((c) => {
-      doc.text(c, marginL + 3, noteY)
-      noteY += 4.5
-    })
-  }
+    doc.text(`${options.headLabel}\n${options.headDeptLabel}`, pageW - marginR, footerY + 8, { align: 'right' })
 
-  // Signature block
-  const sigX = pageW - marginR - 30
-  const sigBaseY = finalY + 25
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  doc.text(options.headLabel, sigX, sigBaseY, { align: 'center' })
-  doc.setFont('helvetica', 'bold')
-  doc.text(options.headDeptLabel, sigX, sigBaseY + 5, { align: 'center' })
+  })
 
-  // Page numbers
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const totalPages = (doc.internal as any).getNumberOfPages()
+  const totalPages = doc.getNumberOfPages()
   for (let p = 1; p <= totalPages; p++) {
     doc.setPage(p)
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    doc.setTextColor(120)
-    doc.text(
-      'Page ' + p + ' of ' + totalPages,
-      pageW / 2,
-      doc.internal.pageSize.getHeight() - 8,
-      { align: 'center' }
-    )
-    doc.text(
-      'Generated by ExamGrid \u00b7 ' + new Date().toLocaleDateString(),
-      marginL,
-      doc.internal.pageSize.getHeight() - 8
-    )
+    doc.setFontSize(7.5)
+    doc.setTextColor(100)
+    doc.text(`Page ${p} of ${totalPages}`, pageW - marginR, pageH - 5, { align: 'right' })
     doc.setTextColor(0)
   }
 
-  doc.save('student-timetable.pdf')
+  const fileSuffix = options.timetableTitle
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 48)
+  const blob = doc.output('blob')
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `section-a-and-b-timetable-${fileSuffix || 'schedule'}.pdf`
+  link.style.display = 'none'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 // ---------------------------------------------------------------------------
@@ -367,6 +336,82 @@ export function StudentTimetablePdf({ scheduleResult, config }: StudentTimetable
     }
   }
 
+  const handlePrintPreview = () => {
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) {
+      alert('Please allow pop-ups to open the timetable print preview.')
+      return
+    }
+
+    const sectionElements = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-timetable-print-section]')
+    )
+    if (sectionElements.length === 0) {
+      printWindow.close()
+      alert('The timetable preview is not ready yet.')
+      return
+    }
+
+    const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    })[character] || character)
+    const examTypeLabel = config.examType === 'mst'
+      ? 'B.Tech. Mid Semester Test (MST)'
+      : config.examType === 'quiz'
+      ? 'B.Tech. Lab Quiz / Practical Evaluation'
+      : 'B.Tech. Examination'
+    const sectionPages = sectionElements.map((sectionElement, index) => {
+      const section = sectionElement.dataset.timetablePrintSection || `Section ${index === 0 ? 'A' : 'B'}`
+      const table = sectionElement.querySelector('table')?.outerHTML || ''
+      const notesHtml = notes.trim()
+        ? `<div class="notes"><strong>Note:</strong>${notes.split('\n').filter(Boolean).map((line, noteIndex) => `<div>${escapeHtml(/^\d+\./.test(line) ? line : `${noteIndex + 1}. ${line}`)}</div>`).join('')}</div>`
+        : ''
+      const copyHtml = copyTo.trim()
+        ? `<div class="copy"><strong>Copy to:</strong>${copyTo.split('\n').filter(Boolean).map((line) => `<div>${escapeHtml(line)}</div>`).join('')}</div>`
+        : ''
+      return `<article class="page">
+        <header>
+          <h1>${escapeHtml(instituteName)}</h1>
+          <h2>${escapeHtml(departmentName)}</h2>
+          <h3>Time Table (${escapeHtml(academicSession)}) Section: ${section.endsWith('A') ? 'A' : 'B'}</h3>
+          <p>${escapeHtml(examTypeLabel)}</p>
+          <div class="date">Date: ${new Date().toLocaleDateString('en-GB')}</div>
+        </header>
+        ${table}
+        <footer>${notesHtml}${copyHtml}<div class="signature"><strong>${escapeHtml(headLabel)}</strong><br>${escapeHtml(headDeptLabel)}</div></footer>
+      </article>`
+    }).join('')
+
+    printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Section A and B Timetable</title>
+      <style>
+        @page { size: A4 landscape; margin: 10mm; }
+        * { box-sizing: border-box; }
+        body { margin: 0; color: #111; font: 10pt Georgia, 'Times New Roman', serif; }
+        .page { min-height: 185mm; page-break-after: always; break-after: page; position: relative; }
+        .page:last-child { page-break-after: auto; break-after: auto; }
+        header { text-align: center; border-bottom: 1px solid #222; margin-bottom: 8mm; padding-bottom: 4mm; }
+        header h1 { font-size: 15pt; margin: 0 0 2mm; }
+        header h2 { font-size: 12pt; margin: 0 0 2mm; }
+        header h3 { font-size: 12pt; margin: 0 0 2mm; }
+        header p { margin: 0; font-weight: bold; }
+        .date { text-align: right; font-size: 9pt; margin-top: 2mm; }
+        table { border-collapse: collapse; width: 100%; font-size: 9pt; }
+        th, td { border: 1px solid #333; padding: 3mm; vertical-align: middle; }
+        th { background: #d0d0d0 !important; color: #111 !important; text-align: center; }
+        td { text-align: center; white-space: pre-line; }
+        td:first-child { font-weight: bold; }
+        .notes { margin-top: 6mm; font-size: 9pt; line-height: 1.4; }
+        .copy { margin-top: 7mm; font-size: 9pt; line-height: 1.4; }
+        footer { position: relative; margin-top: 6mm; min-height: 28mm; }
+        .signature { position: absolute; right: 0; bottom: 0; text-align: center; }
+        @media screen { body { background: #eee; padding: 12mm; } .page { background: white; padding: 10mm; margin: 0 auto 12mm; max-width: 277mm; box-shadow: 0 1mm 5mm #aaa; } }
+      </style></head><body>${sectionPages}</body></html>`)
+    printWindow.document.close()
+    printWindow.focus()
+    printWindow.onafterprint = () => printWindow.close()
+    window.setTimeout(() => printWindow.print(), 250)
+  }
+
   const yearColumnsInResult = Array.from(
     new Set(timetableRows.flatMap((r) => r.courses.map((c) => c.year)))
   ).sort()
@@ -395,7 +440,7 @@ export function StudentTimetablePdf({ scheduleResult, config }: StudentTimetable
                 <div>
                   <h2 className="text-base font-bold text-foreground">Generate Student Timetable</h2>
                   <p className="text-xs text-muted-foreground">
-                    Official A4 PDF from existing generated timetable data
+                    One landscape PDF with Section A and Section B on separate pages
                   </p>
                 </div>
               </div>
@@ -542,14 +587,14 @@ export function StudentTimetablePdf({ scheduleResult, config }: StudentTimetable
                       Timetable Preview
                     </h3>
                     <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-                      Matches PDF layout
+                      Section A and B on separate pages
                     </span>
                   </div>
                   <div
                     id="student-timetable-print-area"
                     className="overflow-x-auto rounded-xl border border-border bg-white shadow-xs"
                   >
-                    <div className="min-w-[580px] p-6 text-black" style={{ fontFamily: 'serif' }}>
+                    <div className="min-w-145 p-6 text-black" style={{ fontFamily: 'serif' }}>
                       {/* Doc header */}
                       <div className="text-center">
                         <p className="text-sm font-bold">{instituteName}</p>
@@ -577,49 +622,41 @@ export function StudentTimetablePdf({ scheduleResult, config }: StudentTimetable
                         </p>
                       </div>
                       <hr className="my-2 border-black" />
-                      {/* Table */}
-                      <table className="w-full border-collapse text-[11px]">
-                        <thead>
-                          <tr style={{ backgroundColor: '#c8d2e6' }}>
-                            <th className="border border-gray-600 px-2 py-1.5 text-center font-bold">Date</th>
-                            <th className="border border-gray-600 px-2 py-1.5 text-center font-bold">Time</th>
-                            {yearColumnsInResult.map((y) => (
-                              <th key={y} className="border border-gray-600 px-2 py-1.5 text-center font-bold">
-                                {y}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {timetableRows.map((row, idx) => (
-                            <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#fafafa' }}>
-                              <td className="border border-gray-400 px-2 py-2 text-center font-semibold align-top">
-                                {row.date}
-                              </td>
-                              <td className="border border-gray-400 px-2 py-2 text-center align-top">
-                                {row.timeRange}
-                              </td>
-                              {yearColumnsInResult.map((yr) => {
-                                const courses = row.courses.filter((c) => c.year === yr)
-                                return (
-                                  <td key={yr} className="border border-gray-400 px-2 py-2 text-center align-top">
-                                    {courses.length === 0 ? (
-                                      <span className="text-gray-400">&mdash;</span>
-                                    ) : (
-                                      courses.map((c, ci) => (
-                                        <div key={ci} className={ci > 0 ? 'mt-2' : ''}>
-                                          <p className="font-bold leading-tight">{c.code}</p>
-                                          <p className="text-gray-700 leading-snug">{c.name}</p>
-                                        </div>
-                                      ))
-                                    )}
-                                  </td>
-                                )
-                              })}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                      {(['Section A', 'Section B'] as const).map((section) => (
+                        <section key={section} data-timetable-print-section={section} className="mt-5 first:mt-0" style={{ pageBreakBefore: section === 'Section B' ? 'always' : 'auto' }}>
+                          <h3 className="mb-2 border-b border-gray-400 pb-1 text-sm font-bold">Time Table ({academicSession}) Section: {section.slice(-1)}</h3>
+                          <table className="w-full border-collapse text-[10px]">
+                            <thead>
+                              <tr style={{ backgroundColor: '#224878', color: '#ffffff' }}>
+                                {['Date', 'Time', ...yearColumnsInResult.map(formatYearHeading)].map((heading) => (
+                                  <th key={heading} className="border border-gray-600 px-1.5 py-1.5 text-center font-bold">{heading}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {timetableRows.map((row, rowIndex) => (
+                                <tr key={rowIndex} style={{ backgroundColor: rowIndex % 2 === 0 ? '#ffffff' : '#f3f7fc' }}>
+                                  <td className="whitespace-pre-line border border-gray-400 px-1.5 py-1.5 text-center font-semibold">{formatTimetableDate(row.date)}</td>
+                                  <td className="border border-gray-400 px-1.5 py-1.5 text-center font-semibold">{row.timeRange}</td>
+                                  {yearColumnsInResult.map((year) => {
+                                    const sectionCourses = row.courses.filter((course) => course.year === year && course.sections.includes(section))
+                                    return (
+                                      <td key={year} className="border border-gray-400 px-2 py-2 text-center align-middle">
+                                        {sectionCourses.map((course, index) => (
+                                          <div key={course.code} className={index ? 'mt-2 border-t border-gray-300 pt-2' : ''}>
+                                            <p className="font-bold leading-tight">{course.code}</p>
+                                            <p className="leading-snug">{course.name}</p>
+                                          </div>
+                                        ))}
+                                      </td>
+                                    )
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </section>
+                      ))}
                       {/* Notes */}
                       {notes.trim() && (
                         <div className="mt-4">
@@ -671,7 +708,7 @@ export function StudentTimetablePdf({ scheduleResult, config }: StudentTimetable
               </button>
               <div className="flex gap-2">
                 <button
-                  onClick={() => window.print()}
+                  onClick={handlePrintPreview}
                   className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2 text-xs font-bold text-foreground hover:bg-muted transition-colors"
                 >
                   <Printer className="size-3.5" />
@@ -688,7 +725,7 @@ export function StudentTimetablePdf({ scheduleResult, config }: StudentTimetable
                   ) : (
                     <Download className="size-3.5" />
                   )}
-                  {isGenerating ? 'Generating PDF\u2026' : 'Download PDF'}
+                  {isGenerating ? 'Generating PDF\u2026' : 'Download both section pages'}
                 </button>
               </div>
             </div>

@@ -15,6 +15,14 @@ import {
 import {
   defaultCourses,
   defaultExamConfigs,
+  defaultMstCourses,
+  defaultMstRooms,
+  defaultMstStudents,
+  defaultMstTeachers,
+  defaultQuizCourses,
+  defaultQuizRooms,
+  defaultQuizStudents,
+  defaultQuizTeachers,
   defaultRooms,
   defaultStudents,
   defaultTeachers,
@@ -32,7 +40,12 @@ import {
   EyeOff,
   FlaskConical,
   GraduationCap,
+  GripVertical,
   Layers,
+  Lock,
+  Move,
+  Pin,
+  PinOff,
   Plus,
   RefreshCw,
   RotateCcw,
@@ -191,6 +204,11 @@ export function InputsManagementView({
   const [studentYearFilter, setStudentYearFilter] = useState<string>('All')
   const [studentSectionFilter, setStudentSectionFilter] = useState<string>('All')
 
+  // Section 6: Fixed Course Slots Filter states
+  const [fixedCourseSemFilter, setFixedCourseSemFilter] = useState<string>('All')
+  const [fixedCourseYearFilter, setFixedCourseYearFilter] = useState<string>('All')
+  const [fixedCourseSearch, setFixedCourseSearch] = useState<string>('')
+
   // Section collapse state
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     config: true,
@@ -198,6 +216,7 @@ export function InputsManagementView({
     courses: true,
     rooms: true,
     teachers: true,
+    fixedSlots: true,
   })
 
   const toggleSection = (section: string) => {
@@ -334,13 +353,9 @@ export function InputsManagementView({
     batch: 'Batch A',
     included: true,
   })
-  const [newStudentCourseInput, setNewStudentCourseInput] = useState<string>('MATH-101, PHYS-101')
 
   const handleAddStudent = () => {
     if (!newStudent.name || !newStudent.rollNo) return
-    const enrolled = newStudentCourseInput
-      ? newStudentCourseInput.split(',').map((s) => s.trim().toUpperCase())
-      : ['MATH-101', 'PHYS-101']
     const added: Student = {
       id: `s_${Date.now()}`,
       name: newStudent.name,
@@ -349,12 +364,10 @@ export function InputsManagementView({
       semester: (newStudent.semester as AcademicSemester) || 'Semester 1',
       branch: newStudent.branch || 'CSE',
       batch: newStudent.batch || 'Batch A',
-      enrolledCourseCodes: enrolled,
       included: true,
     }
     setStudents((prev) => [added, ...prev])
     setNewStudent({ name: '', rollNo: '', year: '1st Year', semester: 'Semester 1', branch: 'CSE', batch: 'Batch A', included: true })
-    setNewStudentCourseInput('MATH-101, PHYS-101')
   }
 
   // New Course Form
@@ -365,8 +378,6 @@ export function InputsManagementView({
     semester: 'Semester 1',
     department: 'CSE',
     type: 'theory',
-    priority: 1,
-    durationMinutes: 60,
     included: true,
   })
 
@@ -380,8 +391,6 @@ export function InputsManagementView({
       semester: (newCourse.semester as AcademicSemester) || 'Semester 1',
       department: newCourse.department || 'CSE',
       type: newCourse.type || 'theory',
-      priority: newCourse.priority || 1,
-      durationMinutes: newCourse.durationMinutes || 60,
       included: true,
     }
     setCourses((prev) => [...prev, added])
@@ -392,8 +401,6 @@ export function InputsManagementView({
       semester: 'Semester 1',
       department: 'CSE',
       type: 'theory',
-      priority: 1,
-      durationMinutes: 60,
       included: true,
     })
   }
@@ -476,18 +483,41 @@ export function InputsManagementView({
 
   const importStudentRows = (rows: ExcelRow[], mode: ExcelMergeMode) => {
     const incoming: Student[] = rows
-      .filter((row) => getExcelValue(row, 'name', 'full name') && getExcelValue(row, 'rollNo', 'roll number', 'roll'))
-      .map((row, index) => ({
-        id: `s_excel_${Date.now()}_${index}`,
-        name: getExcelValue(row, 'name', 'full name'),
-        rollNo: getExcelValue(row, 'rollNo', 'roll number', 'roll'),
-        year: normalizeAcademicYear(getExcelValue(row, 'year', 'academic year')),
-        semester: normalizeSemester(getExcelValue(row, 'semester', 'sem')),
-        branch: getExcelValue(row, 'branch', 'department') || 'CSE',
-        batch: getExcelValue(row, 'batch', 'section') || 'Batch A',
-        enrolledCourseCodes: getExcelValue(row, 'enrolledCourseCodes', 'enrolled courses', 'course codes', 'courses').split(/[,;|]/).map((code) => code.trim().toUpperCase()).filter(Boolean),
-        included: true,
-      }))
+      .filter((row) => getExcelValue(row, 'name', 'full name', 'student name') && getExcelValue(row, 'rollNo', 'roll number', 'roll', 'enrollment no', 'enrollment number'))
+      .map((row, index) => {
+        const semester = normalizeSemester(getExcelValue(row, 'semester', 'sem', 'target semester', 'target sem'))
+        const explicitSection = getExcelValue(row, 'batch', 'section', 'sec')
+        const semNumber = Number(semester.match(/\d+/)?.[0] || 1)
+        const explicitYear = getExcelValue(row, 'year', 'academic year', 'current year')
+        const rollNo = getExcelValue(row, 'rollNo', 'roll number', 'roll', 'enrollment no', 'enrollment number')
+        const branchVal = getExcelValue(row, 'branch', 'department', 'dept', 'stream') || 'CSE'
+
+        // Derive academic year if not explicitly stated from semester
+        let year: AcademicYear = '1st Year'
+        if (explicitYear) {
+          year = normalizeAcademicYear(explicitYear)
+        } else if (semNumber <= 2) {
+          year = '1st Year'
+        } else if (semNumber <= 4) {
+          year = '2nd Year'
+        } else if (semNumber <= 6) {
+          year = '3rd Year'
+        } else {
+          year = '4th Year'
+        }
+
+        return {
+          id: `s_excel_${Date.now()}_${index}`,
+          name: getExcelValue(row, 'name', 'full name', 'student name'),
+          rollNo,
+          year,
+          semester,
+          branch: branchVal,
+          batch: explicitSection ? (explicitSection.toLowerCase().includes('section') ? explicitSection : `Section ${explicitSection.toUpperCase()}`) : `Section ${semNumber % 2 === 1 ? 'A' : 'B'}`,
+          enrolledCourseCodes: getExcelValue(row, 'enrolledCourseCodes', 'enrolled courses', 'course codes', 'courses', 'subjects').split(/[,;|]/).map((code) => code.trim().toUpperCase()).filter(Boolean),
+          included: true,
+        }
+      })
     if (!incoming.length) return 'No valid students found. Name and roll number are required.'
     setStudentSearch('')
     setStudentSemFilter('All')
@@ -498,19 +528,41 @@ export function InputsManagementView({
 
   const importCourseRows = (rows: ExcelRow[], mode: ExcelMergeMode) => {
     const incoming: Course[] = rows
-      .filter((row) => getExcelValue(row, 'code', 'course code') && getExcelValue(row, 'name', 'course name'))
-      .map((row, index) => ({
-        id: `c_excel_${Date.now()}_${index}`,
-        code: getExcelValue(row, 'code', 'course code').toUpperCase(),
-        name: getExcelValue(row, 'name', 'course name'),
-        year: normalizeAcademicYear(getExcelValue(row, 'year', 'target year')),
-        semester: normalizeSemester(getExcelValue(row, 'semester', 'sem', 'target semester', 'target sem')),
-        department: getExcelValue(row, 'department', 'dept') || 'CSE',
-        type: getExcelValue(row, 'type', 'course type').toLowerCase() === 'lab_quiz' ? 'lab_quiz' : 'theory',
-        priority: Number(getExcelValue(row, 'priority')) || 1,
-        durationMinutes: Number(getExcelValue(row, 'durationMinutes', 'duration')) || 60,
-        included: true,
-      }))
+      .filter((row) => getExcelValue(row, 'code', 'course code', 'subject code', 'paper code') && getExcelValue(row, 'name', 'course name', 'subject name', 'paper title', 'title'))
+      .map((row, index) => {
+        const semester = normalizeSemester(getExcelValue(row, 'semester', 'sem', 'target semester', 'target sem'))
+        const semNumber = Number(semester.match(/\d+/)?.[0] || 1)
+        const explicitYear = getExcelValue(row, 'year', 'target year', 'academic year')
+
+        let year: AcademicYear = '1st Year'
+        if (explicitYear) {
+          year = normalizeAcademicYear(explicitYear)
+        } else if (semNumber <= 2) {
+          year = '1st Year'
+        } else if (semNumber <= 4) {
+          year = '2nd Year'
+        } else if (semNumber <= 6) {
+          year = '3rd Year'
+        } else {
+          year = '4th Year'
+        }
+
+        const rawType = getExcelValue(row, 'type', 'course type', 'category').toLowerCase()
+        const code = getExcelValue(row, 'code', 'course code', 'subject code', 'paper code').toUpperCase()
+        const name = getExcelValue(row, 'name', 'course name', 'subject name', 'paper title', 'title')
+        const isLab = rawType === 'lab_quiz' || rawType.includes('lab') || code.includes('-LAB') || name.toLowerCase().includes('lab')
+
+        return {
+          id: `c_excel_${Date.now()}_${index}`,
+          code,
+          name,
+          year,
+          semester,
+          department: getExcelValue(row, 'department', 'dept', 'branch') || 'CSE',
+          type: isLab ? 'lab_quiz' : 'theory',
+          included: true,
+        }
+      })
     if (!incoming.length) return 'No valid courses found. Course code and name are required.'
     setCourseSearch('')
     setCourseSemFilter('All')
@@ -578,10 +630,17 @@ export function InputsManagementView({
   // Preset switch
   const handleLoadPreset = (type: 'mst' | 'quiz') => {
     setConfig(defaultExamConfigs[type])
-    setStudents(defaultStudents.map((s) => ({ ...s, included: true })))
-    setCourses(defaultCourses.map((c) => ({ ...c, included: true })))
-    setRooms(defaultRooms.map((r) => ({ ...r, included: true })))
-    setTeachers(defaultTeachers.map((t) => ({ ...t, included: true })))
+    if (type === 'quiz') {
+      setStudents(defaultQuizStudents.map((s) => ({ ...s, included: true })))
+      setCourses(defaultQuizCourses.map((c) => ({ ...c, included: true })))
+      setRooms(defaultQuizRooms.map((r) => ({ ...r, included: true })))
+      setTeachers(defaultQuizTeachers.map((t) => ({ ...t, included: true })))
+    } else {
+      setStudents(defaultMstStudents.map((s) => ({ ...s, included: true })))
+      setCourses(defaultMstCourses.map((c) => ({ ...c, included: true })))
+      setRooms(defaultMstRooms.map((r) => ({ ...r, included: true })))
+      setTeachers(defaultMstTeachers.map((t) => ({ ...t, included: true })))
+    }
   }
 
   const getSemesterOrder = (sem?: string, year?: string): number => {
@@ -610,7 +669,9 @@ export function InputsManagementView({
         s.name.toLowerCase().includes(studentSearch.toLowerCase()) ||
         s.rollNo.toLowerCase().includes(studentSearch.toLowerCase()) ||
         s.branch.toLowerCase().includes(studentSearch.toLowerCase()) ||
-        s.enrolledCourseCodes.some((c) => c.toLowerCase().includes(studentSearch.toLowerCase()))
+        (s.semester && s.semester.toLowerCase().includes(studentSearch.toLowerCase())) ||
+        (s.year && s.year.toLowerCase().includes(studentSearch.toLowerCase())) ||
+        (s.enrolledCourseCodes && s.enrolledCourseCodes.some((c) => c.toLowerCase().includes(studentSearch.toLowerCase())))
 
       const sSem = s.semester || (s.year === '1st Year' ? 'Semester 1' : s.year === '2nd Year' ? 'Semester 3' : s.year === '3rd Year' ? 'Semester 5' : 'Semester 7')
       const matchSem = studentSemFilter === 'All' || sSem === studentSemFilter
@@ -750,7 +811,7 @@ export function InputsManagementView({
 
         <div className="flex flex-wrap items-center gap-3">
           <button
-            onClick={() => handleLoadPreset('mst')}
+            onClick={() => handleLoadPreset(config.examType as 'mst' | 'quiz')}
             className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors shadow-2xs"
           >
             <RotateCcw className="size-3.5 text-slate-500" />
@@ -777,6 +838,7 @@ export function InputsManagementView({
           { id: 'sec-students', label: `3. Students (${activeStudentsCount}/${students.length} active)`, icon: GraduationCap },
           { id: 'sec-rooms', label: `4. Rooms & Labs (${activeRoomsCount}/${rooms.length} active)`, icon: Building2 },
           { id: 'sec-teachers', label: `5. Faculty (${activeTeachersCount}/${teachers.length} active)`, icon: UserCheck },
+          { id: 'sec-fixed-slots', label: `6. Pin Courses to Slots (${Object.keys(config.fixedCourseSlots || {}).length} pinned)`, icon: Pin },
         ].map((item) => {
           const Icon = item.icon
           return (
@@ -818,42 +880,25 @@ export function InputsManagementView({
 
         {openSections.config && (
           <div className="mt-6 flex flex-col gap-6">
-            {/* Presets Selector */}
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Apply Preset Configuration Template
-              </label>
-              <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {[
-                  {
-                    type: 'mst',
-                    label: 'Mid-Sem Test (MST) Timetable',
-                    desc: 'Theory Exams (60 mins), 2-4 days, cross-year interleaved bench seating',
-                    icon: '📝',
-                  },
-                  {
-                    type: 'quiz',
-                    label: 'Practical Lab Evaluations / Quizzes',
-                    desc: 'Lab Sessions (60 mins), Computer Labs, individual workstations',
-                    icon: '🔬',
-                  },
-                ].map((item) => (
-                  <button
-                    key={item.type}
-                    onClick={() => handleLoadPreset(item.type as 'mst' | 'quiz')}
-                    className={`flex flex-col items-start rounded-xl border p-4 text-left transition-all ${
-                      config.examType === item.type
-                        ? 'border-blue-600 bg-blue-50/50 shadow-xs ring-1 ring-blue-600'
-                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">{item.icon}</span>
-                      <span className="text-sm font-bold text-slate-900">{item.label}</span>
-                    </div>
-                    <p className="mt-1 text-xs text-slate-500">{item.desc}</p>
-                  </button>
-                ))}
+            {/* Active Mode Banner */}
+            <div className="flex items-center justify-between rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3">
+              <div className="flex items-center gap-2.5">
+                <span className="text-xl">{config.examType === 'quiz' ? '🔬' : '📝'}</span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-blue-900">
+                      Active Mode: {config.examType === 'quiz' ? 'Practical Lab Evaluations / Quizzes' : 'Mid-Sem Test (MST)'}
+                    </span>
+                    <span className="rounded-full bg-blue-200/70 px-2 py-0.5 text-[10px] font-bold text-blue-800">
+                      Selected via Sidebar Navigation
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-blue-700 mt-0.5">
+                    {config.examType === 'quiz'
+                      ? 'Configured for laboratory evaluations, individual lab workstations, and lab courses.'
+                      : 'Configured for theory mid-sem tests, cross-year interleaved bench seating, and lecture halls.'}
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -1640,29 +1685,12 @@ export function InputsManagementView({
                       <th className="py-2.5 px-3">Department</th>
                       <th className="py-2.5 px-3">Target Year</th>
                       <th className="py-2.5 px-3">Target Sem</th>
-                      <th className="py-2.5 px-3 w-20 text-center">Priority</th>
-                      <th className="py-2.5 px-3 w-40">Bind / Pair Subject (Same Day)</th>
-                      <th className="py-2.5 px-3 w-28">Exam Duration</th>
                       <th className="py-2.5 px-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
                     {filteredCourses.map((c) => {
                       const isIncluded = c.included !== false
-                      const defaultDuration =
-                        c.durationMinutes ||
-                        (c.type === 'lab_quiz'
-                          ? config.labDurationMinutes || 60
-                          : config.theoryDurationMinutes || 60)
-
-                      // Available same-semester courses for pairing
-                      const sameSemCourses = courses.filter(
-                        (other) =>
-                          other.id !== c.id &&
-                          other.year === c.year &&
-                          (other.semester === c.semester || !c.semester || !other.semester) &&
-                          other.included !== false
-                      )
 
                       return (
                         <tr
@@ -1713,77 +1741,6 @@ export function InputsManagementView({
                             <span className="rounded bg-slate-100 px-2 py-0.5 font-bold text-slate-700 border border-slate-200 text-[11px]">
                               {c.semester || (c.year === '1st Year' ? 'Semester 1 (Sem A - Odd)' : c.year === '2nd Year' ? 'Semester 3 (Sem A - Odd)' : c.year === '3rd Year' ? 'Semester 5 (Sem A - Odd)' : 'Semester 7 (Sem A - Odd)')}
                             </span>
-                          </td>
-                          {/* Priority Column */}
-                          <td className="py-2.5 px-3 text-center">
-                            <input
-                              type="number"
-                              min={1}
-                              max={99}
-                              value={c.priority !== undefined ? c.priority : 1}
-                              onChange={(e) => {
-                                const val = Number(e.target.value)
-                                setCourses((prev) =>
-                                  prev.map((item) =>
-                                    item.id === c.id ? { ...item, priority: val } : item
-                                  )
-                                )
-                              }}
-                              className="w-12 rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs font-bold text-blue-700 text-center focus:border-blue-500 focus:outline-none"
-                              title="Lower number = Higher Priority (Scheduled earlier in the exam session)"
-                            />
-                          </td>
-                          {/* Binding Group Number Column */}
-                          <td className="py-2.5 px-3">
-                            <div className="flex items-center gap-1.5">
-                              <input
-                                type="number"
-                                min={1}
-                                max={99}
-                                placeholder="None"
-                                value={c.bindingGroup !== undefined && c.bindingGroup > 0 ? c.bindingGroup : ''}
-                                onChange={(e) => {
-                                  const val = e.target.value ? Number(e.target.value) : undefined
-                                  setCourses((prev) =>
-                                    prev.map((item) =>
-                                      item.id === c.id ? { ...item, bindingGroup: val } : item
-                                    )
-                                  )
-                                }}
-                                className={`w-14 rounded-md border px-2 py-1 text-xs font-bold text-center focus:outline-none ${
-                                  c.bindingGroup
-                                    ? 'border-indigo-400 bg-indigo-50 text-indigo-800 ring-1 ring-indigo-300'
-                                    : 'border-slate-300 bg-white text-slate-700'
-                                }`}
-                                title="Enter matching number on 2 courses of the same semester (e.g. 1 & 1) to bind them on the same day"
-                              />
-                              {c.bindingGroup && (
-                                <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[9px] font-bold text-indigo-700">
-                                  🔗 Group #{c.bindingGroup}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="py-2.5 px-3">
-                            <div className="flex items-center gap-1">
-                              <input
-                                type="number"
-                                min={15}
-                                max={360}
-                                step={15}
-                                value={c.durationMinutes !== undefined ? c.durationMinutes : defaultDuration}
-                                onChange={(e) => {
-                                  const val = Number(e.target.value)
-                                  setCourses((prev) =>
-                                    prev.map((item) =>
-                                      item.id === c.id ? { ...item, durationMinutes: val } : item
-                                    )
-                                  )
-                                }}
-                                className="w-16 rounded border border-slate-300 bg-white px-1.5 py-1 text-xs font-bold text-slate-800 text-center focus:border-amber-500 focus:outline-none"
-                              />
-                              <span className="text-[10px] text-slate-400 font-medium">min</span>
-                            </div>
                           </td>
                           <td className="py-2.5 px-3 text-right">
                             <button
@@ -1842,7 +1799,7 @@ export function InputsManagementView({
               <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
                 Add New Student
               </span>
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7">
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
                 <div>
                   <span className="text-[10px] text-slate-500 font-semibold">Full Name</span>
                   <input
@@ -1900,16 +1857,6 @@ export function InputsManagementView({
                     placeholder="e.g. CSE"
                     value={newStudent.branch}
                     onChange={(e) => setNewStudent({ ...newStudent, branch: e.target.value })}
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-500 font-semibold">Course Codes (comma separated)</span>
-                  <input
-                    type="text"
-                    placeholder="e.g. MATH-101, PHYS-101"
-                    value={newStudentCourseInput}
-                    onChange={(e) => setNewStudentCourseInput(e.target.value)}
                     className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
@@ -2153,13 +2100,14 @@ export function InputsManagementView({
                       <th className="py-2.5 px-3">Student Name</th>
                       <th className="py-2.5 px-3">Year / Branch</th>
                       <th className="py-2.5 px-3">Target Sem</th>
-                      <th className="py-2.5 px-3">Enrolled Course Codes</th>
+                      <th className="py-2.5 px-3">Exam Eligibility</th>
                       <th className="py-2.5 px-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
                     {filteredStudents.map((st) => {
                       const isIncluded = st.included !== false
+                      const semLabel = st.semester || (st.year === '1st Year' ? 'Semester 1 (Sem A - Odd)' : st.year === '2nd Year' ? 'Semester 3 (Sem A - Odd)' : st.year === '3rd Year' ? 'Semester 5 (Sem A - Odd)' : 'Semester 7 (Sem A - Odd)')
                       return (
                         <tr
                           key={st.id}
@@ -2191,20 +2139,13 @@ export function InputsManagementView({
                           </td>
                           <td className="py-2.5 px-3">
                             <span className="rounded bg-indigo-50 px-2 py-0.5 font-bold text-indigo-700 border border-indigo-100 text-[11px]">
-                              {st.semester || (st.year === '1st Year' ? 'Semester 1 (Sem A - Odd)' : st.year === '2nd Year' ? 'Semester 3 (Sem A - Odd)' : st.year === '3rd Year' ? 'Semester 5 (Sem A - Odd)' : 'Semester 7 (Sem A - Odd)')}
+                              {semLabel}
                             </span>
                           </td>
                           <td className="py-2.5 px-3">
-                            <div className="flex flex-wrap gap-1">
-                              {st.enrolledCourseCodes.map((code) => (
-                                <span
-                                  key={code}
-                                  className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-700 border border-slate-200"
-                                >
-                                  {code}
-                                </span>
-                              ))}
-                            </div>
+                            <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 border border-emerald-200">
+                              ✓ All {semLabel.split(' ')[0]} {semLabel.split(' ')[1]} Exams
+                            </span>
                           </td>
                           <td className="py-2.5 px-3 text-right">
                             <button
@@ -2715,6 +2656,474 @@ export function InputsManagementView({
                 </table>
               </div>
             </div>
+          </div>
+        )}
+      </section>
+
+      {/* ========================================================================= */}
+      {/* SECTION 6: PIN / FIX COURSES TO SLOTS (OPTIONAL) */}
+      {/* ========================================================================= */}
+      <section id="sec-fixed-slots" className="scroll-mt-36 rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50/40 via-white to-white p-6 shadow-sm">
+        <div className="flex items-center justify-between border-b border-amber-100 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-amber-100 text-amber-800 border border-amber-300">
+              <Pin className="size-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-bold text-slate-900">
+                  6. Pin Courses to Exam Days & Slots
+                </h3>
+                <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-800 border border-amber-300">
+                  Optional Pre-Assignment
+                </span>
+              </div>
+              <p className="text-xs text-slate-600">
+                Fix specific subject(s) to a chosen day and slot or drag & drop. Unpinned courses will be scheduled automatically by the algorithm.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {Object.keys(config.fixedCourseSlots || {}).length > 0 && (
+              <button
+                onClick={() => setConfig((prev) => ({ ...prev, fixedCourseSlots: {} }))}
+                className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 transition-colors"
+                title="Clear all manual pinned assignments"
+              >
+                <PinOff className="size-3.5" />
+                Clear All Pins ({Object.keys(config.fixedCourseSlots || {}).length})
+              </button>
+            )}
+            <button
+              onClick={() => toggleSection('fixedSlots')}
+              className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 transition-colors"
+            >
+              {openSections.fixedSlots ? <ChevronUp className="size-5" /> : <ChevronDown className="size-5" />}
+            </button>
+          </div>
+        </div>
+
+        {openSections.fixedSlots && (
+          <div className="mt-6 flex flex-col gap-6">
+            {/* Filter controls: Semester, Year & Search */}
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Semester Filter */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-slate-600">Semester:</span>
+                    <select
+                      value={fixedCourseSemFilter}
+                      onChange={(e) => setFixedCourseSemFilter(e.target.value)}
+                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-800 focus:border-amber-500 focus:outline-none"
+                    >
+                      <option value="All">All Semesters</option>
+                      {uniqueSemesters.map((sem) => (
+                        <option key={sem} value={sem}>
+                          {sem}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Year Filter */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-slate-600">Year:</span>
+                    <select
+                      value={fixedCourseYearFilter}
+                      onChange={(e) => setFixedCourseYearFilter(e.target.value)}
+                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-800 focus:border-amber-500 focus:outline-none"
+                    >
+                      <option value="All">All Years</option>
+                      {uniqueYears.map((yr) => (
+                        <option key={yr} value={yr}>
+                          {yr}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {(fixedCourseSemFilter !== 'All' || fixedCourseYearFilter !== 'All' || fixedCourseSearch) && (
+                    <button
+                      onClick={() => {
+                        setFixedCourseSemFilter('All')
+                        setFixedCourseYearFilter('All')
+                        setFixedCourseSearch('')
+                      }}
+                      className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
+                    >
+                      Reset Filters
+                    </button>
+                  )}
+                </div>
+
+                {/* Course Search */}
+                <div className="relative min-w-[240px]">
+                  <Search className="absolute left-3 top-2.5 size-3.5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search subject code or name..."
+                    value={fixedCourseSearch}
+                    onChange={(e) => setFixedCourseSearch(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-8 pr-3 text-xs text-slate-800 placeholder-slate-400 focus:border-amber-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Main Interactive Grid: Available Course Drawer + Day Slot Columns */}
+            {(() => {
+              // Calculate effective exam dates
+              const sDate = new Date(config.startDate || '2026-04-10')
+              let eDate = new Date(config.endDate || '2026-04-14')
+              if (eDate < sDate) {
+                eDate = new Date(sDate.getTime() + ((config.totalDays || 4) - 1) * 86400000)
+              }
+              const hSet = new Set(config.holidays || [])
+              const computedExamDays: { dayNumber: number; dateStr: string }[] = []
+              const currD = new Date(sDate)
+              let dCount = 1
+
+              while (currD <= eDate) {
+                const yyyy = currD.getFullYear()
+                const mm = String(currD.getMonth() + 1).padStart(2, '0')
+                const dd = String(currD.getDate()).padStart(2, '0')
+                const iso = `${yyyy}-${mm}-${dd}`
+                if (currD.getDay() !== 0 && !hSet.has(iso)) {
+                  computedExamDays.push({
+                    dayNumber: dCount++,
+                    dateStr: currD.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+                  })
+                }
+                currD.setDate(currD.getDate() + 1)
+              }
+              if (computedExamDays.length === 0) {
+                for (let d = 1; d <= (config.totalDays || 4); d++) {
+                  computedExamDays.push({ dayNumber: d, dateStr: `Day ${d}` })
+                }
+              }
+
+              // Filtered active courses for Section 6
+              const filteredSection6Courses = courses
+                .filter((c) => c.included !== false)
+                .filter((c) => {
+                  const matchSearch =
+                    c.name.toLowerCase().includes(fixedCourseSearch.toLowerCase()) ||
+                    c.code.toLowerCase().includes(fixedCourseSearch.toLowerCase()) ||
+                    (c.semester && c.semester.toLowerCase().includes(fixedCourseSearch.toLowerCase())) ||
+                    (c.year && c.year.toLowerCase().includes(fixedCourseSearch.toLowerCase()))
+
+                  const cSem = c.semester || (c.year === '1st Year' ? 'Semester 1' : c.year === '2nd Year' ? 'Semester 3' : c.year === '3rd Year' ? 'Semester 5' : 'Semester 7')
+                  const matchSem = fixedCourseSemFilter === 'All' || cSem === fixedCourseSemFilter
+                  const matchYear = fixedCourseYearFilter === 'All' || c.year === fixedCourseYearFilter
+
+                  return matchSearch && matchSem && matchYear
+                })
+                .sort((a, b) => {
+                  const semA = getSemesterOrder(a.semester, a.year)
+                  const semB = getSemesterOrder(b.semester, b.year)
+                  if (semA !== semB) return semA - semB
+                  return a.name.localeCompare(b.name)
+                })
+
+              const fixedSlots = config.fixedCourseSlots || {}
+
+              // Pin helper function
+              const handlePinCourse = (code: string, dayNumber: number, slotIndex: number) => {
+                setConfig((prev) => {
+                  const updated = { ...(prev.fixedCourseSlots || {}) }
+                  if (dayNumber < 0 || slotIndex < 0) {
+                    delete updated[code.toUpperCase()]
+                  } else {
+                    updated[code.toUpperCase()] = { dayNumber, slotIndex }
+                  }
+                  return { ...prev, fixedCourseSlots: updated }
+                })
+              }
+
+              // Unpin helper
+              const handleUnpinCourse = (code: string) => {
+                setConfig((prev) => {
+                  const updated = { ...(prev.fixedCourseSlots || {}) }
+                  delete updated[code.toUpperCase()]
+                  return { ...prev, fixedCourseSlots: updated }
+                })
+              }
+
+              return (
+                <div className="flex flex-col gap-6">
+                  {/* Summary Stat */}
+                  <div className="flex items-center justify-between rounded-xl bg-amber-50/80 px-4 py-2.5 text-xs text-amber-900 border border-amber-200">
+                    <span className="font-medium">
+                      Showing <strong className="font-bold">{filteredSection6Courses.length}</strong> active course{filteredSection6Courses.length === 1 ? '' : 's'} matching filter. Currently <strong className="font-bold">{Object.keys(fixedSlots).length}</strong> course(s) pinned.
+                    </span>
+                    <span className="text-[11px] text-amber-700">
+                      💡 Tip: Use the Quick Slot Selector on each card or drag & drop course chips into any day/slot column below!
+                    </span>
+                  </div>
+
+                  {/* Top: Available Subject Cards Pool */}
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                        Select / Drag Courses ({filteredSection6Courses.length} in view)
+                      </span>
+                      <span className="text-[11px] text-slate-500">
+                        Drag card or use dropdown to assign
+                      </span>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-2.5 max-h-72 overflow-y-auto pr-1">
+                      {filteredSection6Courses.length === 0 ? (
+                        <p className="py-4 text-xs text-slate-400 italic">
+                          No active courses match the current semester/year filter.
+                        </p>
+                      ) : (
+                        filteredSection6Courses.map((c) => {
+                          const isPinned = fixedSlots[c.code.toUpperCase()] !== undefined
+                          const pinInfo = fixedSlots[c.code.toUpperCase()]
+                          const semLabel = c.semester || (c.year === '1st Year' ? 'Sem 1' : c.year === '2nd Year' ? 'Sem 3' : c.year === '3rd Year' ? 'Sem 5' : 'Sem 7')
+
+                          return (
+                            <div
+                              key={c.id}
+                              draggable
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData('text/plain', c.code)
+                              }}
+                              className={`group flex flex-col justify-between rounded-xl border p-3 shadow-2xs transition-all cursor-grab active:cursor-grabbing w-72 ${
+                                isPinned
+                                  ? 'border-amber-400 bg-amber-50/90 text-amber-950 ring-2 ring-amber-300'
+                                  : 'border-slate-200 bg-white hover:border-blue-300 hover:shadow-xs'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-center gap-1.5">
+                                  <GripVertical className="size-3.5 text-slate-400 group-hover:text-slate-600" />
+                                  <span className="font-mono text-xs font-bold text-slate-900">
+                                    {c.code}
+                                  </span>
+                                  {isPinned && (
+                                    <span className="flex items-center gap-0.5 rounded-full bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
+                                      <Pin className="size-2.5 fill-amber-800" />
+                                      Day {pinInfo.dayNumber}, S{pinInfo.slotIndex + 1}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                                  {semLabel}
+                                </span>
+                              </div>
+
+                              <p className="mt-1.5 text-xs text-slate-700 line-clamp-2 font-medium">
+                                {c.name}
+                              </p>
+
+                              <div className="mt-2.5 flex items-center justify-between border-t border-slate-100 pt-2 gap-2">
+                                <div className="flex items-center gap-1 text-[11px] text-slate-500">
+                                  <span>Slot:</span>
+                                  <select
+                                    value={
+                                      isPinned
+                                        ? `${pinInfo.dayNumber}_${pinInfo.slotIndex}`
+                                        : 'none'
+                                    }
+                                    onChange={(e) => {
+                                      const val = e.target.value
+                                      if (val === 'none') {
+                                        handleUnpinCourse(c.code)
+                                      } else {
+                                        const [d, s] = val.split('_').map(Number)
+                                        handlePinCourse(c.code, d, s)
+                                      }
+                                    }}
+                                    className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-semibold text-slate-800 focus:border-amber-500 focus:outline-none"
+                                  >
+                                    <option value="none">Auto (Algorithm)</option>
+                                    {computedExamDays.map((d) => {
+                                      const daySlots =
+                                        (config.daySpecificSlots && config.daySpecificSlots[d.dayNumber]) ||
+                                        config.slotsPerDay ||
+                                        []
+                                      return daySlots.map((s, sIdx) => (
+                                        <option
+                                          key={`${d.dayNumber}_${sIdx}`}
+                                          value={`${d.dayNumber}_${sIdx}`}
+                                        >
+                                          Day {d.dayNumber} ({s.timeSlot || `Shift ${sIdx + 1}`})
+                                        </option>
+                                      ))
+                                    })}
+                                  </select>
+                                </div>
+
+                                {isPinned && (
+                                  <button
+                                    onClick={() => handleUnpinCourse(c.code)}
+                                    className="rounded p-1 text-slate-400 hover:bg-red-100 hover:text-red-700 transition-colors"
+                                    title="Unpin course from this slot"
+                                  >
+                                    <PinOff className="size-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Bottom: Exam Days & Slots Drop Matrix */}
+                  <div>
+                    <div className="mb-3 flex items-center justify-between">
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">
+                          Exam Day Matrix & Assigned Slots
+                        </h4>
+                        <p className="text-xs text-slate-500">
+                          Drag course cards into any slot or click "Assign Course"
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                      {computedExamDays.map((d) => {
+                        const daySlots =
+                          (config.daySpecificSlots && config.daySpecificSlots[d.dayNumber]) ||
+                          config.slotsPerDay ||
+                          []
+
+                        return (
+                          <div
+                            key={d.dayNumber}
+                            className="flex flex-col rounded-xl border border-slate-200 bg-slate-50/80 overflow-hidden shadow-2xs"
+                          >
+                            {/* Day Header */}
+                            <div className="border-b border-slate-200 bg-white px-3.5 py-2.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-slate-900">
+                                  Day {d.dayNumber}
+                                </span>
+                                <span className="rounded bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700 border border-blue-200">
+                                  {d.dateStr}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Slot Rows */}
+                            <div className="flex flex-col divide-y divide-slate-200 p-2 gap-2">
+                              {daySlots.map((slot, sIdx) => {
+                                // Find courses pinned to this day and slot
+                                const assignedCourseCodes = Object.entries(fixedSlots)
+                                  .filter(
+                                    ([, pos]) =>
+                                      pos.dayNumber === d.dayNumber && pos.slotIndex === sIdx
+                                  )
+                                  .map(([code]) => code)
+
+                                return (
+                                  <div
+                                    key={sIdx}
+                                    onDragOver={(e) => {
+                                      e.preventDefault()
+                                      e.dataTransfer.dropEffect = 'copy'
+                                    }}
+                                    onDrop={(e) => {
+                                      e.preventDefault()
+                                      const courseCode = e.dataTransfer.getData('text/plain')
+                                      if (courseCode) {
+                                        handlePinCourse(courseCode, d.dayNumber, sIdx)
+                                      }
+                                    }}
+                                    className="rounded-lg border border-dashed border-slate-300 bg-white p-2.5 transition-colors hover:border-amber-400 hover:bg-amber-50/30 min-h-[90px] flex flex-col justify-between"
+                                  >
+                                    <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                                      <span className="text-[11px] font-bold text-slate-700">
+                                        Shift {sIdx + 1}
+                                      </span>
+                                      <span className="text-[10px] text-slate-500 font-medium">
+                                        {slot.timeSlot || 'Slot Time'}
+                                      </span>
+                                    </div>
+
+                                    {/* Assigned Courses List */}
+                                    <div className="my-1.5 flex flex-col gap-1.5">
+                                      {assignedCourseCodes.length === 0 ? (
+                                        <div className="flex items-center justify-center py-2 text-center">
+                                          <span className="text-[11px] text-slate-400 italic">
+                                            Drop courses here
+                                          </span>
+                                        </div>
+                                      ) : (
+                                        assignedCourseCodes.map((code) => {
+                                          const courseObj = courses.find(
+                                            (c) => c.code.toUpperCase() === code.toUpperCase()
+                                          )
+                                          return (
+                                            <div
+                                              key={code}
+                                              className="flex items-center justify-between rounded-md border border-amber-300 bg-amber-100/90 px-2 py-1 text-xs text-amber-950 shadow-2xs"
+                                            >
+                                              <div className="flex items-center gap-1.5 truncate">
+                                                <Pin className="size-3 text-amber-700 fill-amber-700 shrink-0" />
+                                                <span className="font-mono font-bold">
+                                                  {code}
+                                                </span>
+                                                {courseObj && (
+                                                  <span className="truncate text-[10px] text-amber-800">
+                                                    ({courseObj.name})
+                                                  </span>
+                                                )}
+                                              </div>
+                                              <button
+                                                onClick={() => handleUnpinCourse(code)}
+                                                className="ml-1 rounded p-0.5 text-amber-700 hover:bg-amber-200 hover:text-red-700 transition-colors"
+                                                title="Remove fixed slot"
+                                              >
+                                                <PinOff className="size-3" />
+                                              </button>
+                                            </div>
+                                          )
+                                        })
+                                      )}
+                                    </div>
+
+                                    {/* Quick Add Dropdown */}
+                                    <div className="pt-1">
+                                      <select
+                                        value=""
+                                        onChange={(e) => {
+                                          if (e.target.value) {
+                                            handlePinCourse(e.target.value, d.dayNumber, sIdx)
+                                          }
+                                        }}
+                                        className="w-full rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-600 focus:border-amber-500 focus:bg-white focus:outline-none"
+                                      >
+                                        <option value="">+ Add Course to Shift {sIdx + 1}...</option>
+                                        {filteredSection6Courses
+                                          .filter(
+                                            (c) => !assignedCourseCodes.includes(c.code.toUpperCase())
+                                          )
+                                          .map((c) => (
+                                            <option key={c.id} value={c.code}>
+                                              {c.code} - {c.name} ({c.semester || c.year})
+                                            </option>
+                                          ))}
+                                      </select>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
           </div>
         )}
       </section>

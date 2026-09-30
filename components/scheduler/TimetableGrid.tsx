@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import {
+  AlertTriangle,
   BookOpen,
   Building2,
   Calendar,
@@ -18,6 +19,14 @@ import {
 } from 'lucide-react'
 import { AcademicYear, ExamSessionConfig, ExamType, ScheduleResult, ScheduledSlot } from '@/lib/types'
 import { StudentTimetablePdf } from '@/components/scheduler/StudentTimetablePdf'
+import { StudentSeatingPlanPdf } from '@/components/scheduler/StudentSeatingPlanPdf'
+import { FacultyDutyChartPdf } from '@/components/scheduler/FacultyDutyChartPdf'
+
+function normalizeSectionLabel(value: string): string | undefined {
+  const normalized = value.trim().replace(/^(?:section|batch)\s*/i, '')
+  const match = normalized.match(/^([ab])\s*\d*$/i)
+  return match ? `Section ${match[1].toUpperCase()}` : undefined
+}
 
 interface TimetableGridProps {
   slots: ScheduledSlot[]
@@ -34,6 +43,7 @@ export function TimetableGrid({
 }: TimetableGridProps) {
   const [selectedYear, setSelectedYear] = useState<string>('All')
   const [selectedType, setSelectedType] = useState<string>('All')
+  const [selectedSection, setSelectedSection] = useState<'All' | 'Section A' | 'Section B'>('All')
   const [viewFormat, setViewFormat] = useState<'table' | 'cards'>('table')
 
   const years: string[] = ['All', '1st Year', '2nd Year', '3rd Year', '4th Year']
@@ -53,13 +63,14 @@ export function TimetableGrid({
       const matchingCourses = slot.scheduledCourses.filter((c) => {
         const matchYear = selectedYear === 'All' || c.year === selectedYear
         const matchType = selectedType === 'All' || c.type === selectedType
-        return matchYear && matchType
+        const matchSection = selectedSection === 'All' || c.sections?.some((section) => normalizeSectionLabel(section) === selectedSection)
+        return matchYear && matchType && matchSection
       })
 
       return {
         ...slot,
-        visibleCourses: matchingCourses.length > 0 ? matchingCourses : (selectedYear === 'All' && selectedType === 'All' ? slot.scheduledCourses : []),
-        isVisible: matchingCourses.length > 0 || (selectedYear === 'All' && selectedType === 'All' && slot.scheduledCourses.length > 0),
+        visibleCourses: matchingCourses,
+        isVisible: matchingCourses.length > 0,
       }
     })
     .filter((s) => s.isVisible && s.visibleCourses.length > 0)
@@ -167,11 +178,29 @@ export function TimetableGrid({
               </button>
             ))}
           </div>
+          {/* Separate Section Timetables */}
+          <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/40 p-1">
+            <span className="ml-2 mr-1 text-xs font-semibold text-muted-foreground">Section:</span>
+            {(['All', 'Section A', 'Section B'] as const).map((section) => (
+              <button
+                key={section}
+                onClick={() => setSelectedSection(section)}
+                aria-pressed={selectedSection === section}
+                className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-all ${selectedSection === section ? 'bg-primary text-primary-foreground shadow-xs' : 'text-muted-foreground hover:bg-background hover:text-foreground'}`}
+              >
+                {section}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {scheduleResult && config && (
-            <StudentTimetablePdf scheduleResult={scheduleResult} config={config} />
+            <>
+              <StudentTimetablePdf scheduleResult={scheduleResult} config={config} />
+              <StudentSeatingPlanPdf scheduleResult={scheduleResult} config={config} />
+              <FacultyDutyChartPdf scheduleResult={scheduleResult} config={config} />
+            </>
           )}
           <button
             onClick={handlePrint}
@@ -182,6 +211,34 @@ export function TimetableGrid({
           </button>
         </div>
       </div>
+
+      {/* Unscheduled Courses / Slot Limit Error Banner */}
+      {scheduleResult?.unscheduledCourses && scheduleResult.unscheduledCourses.length > 0 && (
+        <div className="flex flex-col gap-2 rounded-2xl border border-red-300 bg-red-50 p-4 text-xs text-red-900 shadow-xs">
+          <div className="flex items-center gap-2 font-bold text-red-700">
+            <AlertTriangle className="size-4.5 text-red-600 shrink-0" />
+            <span>Slot Limit Exceeded &mdash; Unscheduled Courses Error:</span>
+          </div>
+          <p className="text-[11px] text-red-800">
+            The following course(s) could not be scheduled because the number of courses in their semester exceeds the total number of available session slots. Increase Total Days or Shifts per Day in Setup.
+          </p>
+          <div className="mt-1 flex flex-wrap gap-2">
+            {scheduleResult.unscheduledCourses.map(({ course, reason }) => (
+              <div
+                key={course.id}
+                className="flex items-center gap-1.5 rounded-lg border border-red-300 bg-white px-2.5 py-1 text-xs font-semibold text-red-900 shadow-2xs"
+                title={reason}
+              >
+                <span className="font-mono font-bold text-red-700">{course.code}</span>
+                <span>({course.name})</span>
+                <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] text-red-800 font-bold">
+                  {course.semester || course.year}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* VIEW FORMAT 1: HIGH CLARITY TABULAR TIMETABLE (Date, Time, Subject, Duty) */}
@@ -258,6 +315,9 @@ export function TimetableGrid({
                       <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground mt-0.5 inline-block">
                         {row.course.semester || 'All Cohorts'}
                       </span>
+                      {row.course.sections?.length > 0 && (
+                        <span className="mt-1 block text-[10px] font-bold text-primary">{row.course.sections.join(' · ')}</span>
+                      )}
                     </td>
 
                     {/* Duration */}
