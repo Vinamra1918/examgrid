@@ -159,34 +159,46 @@ export default function Page() {
       0
     )
 
-    // Build deficiency warning alerts
-    const alerts: string[] = []
+    // Build deficiency warning alerts (MST Theory Mode only)
+    if (config.examType === 'quiz') {
+      const yearConfigs = config.quizYearConfigs || {}
+      const hasAnyYearSelected = Object.values(yearConfigs).some((y: any) => y.enabled)
+      if (!hasAnyYearSelected) {
+        window.alert(
+          `[ExamGrid Quiz Notice]\n\n` +
+          `No academic years selected for lab quiz evaluation.\n` +
+          `Please enable at least one year (1st, 2nd, 3rd, or 4th Year) in Section 1.`
+        )
+      }
+    } else {
+      const alerts: string[] = []
 
-    if (totalSlotsAvailable < maxExamsInAnySemester) {
-      const worstSemEntry = Object.entries(coursesPerSem).find(([_, count]) => count === maxExamsInAnySemester)
-      alerts.push(
-        `⚠️ INSUFFICIENT SLOTS:\n` +
-        `• Available Slots: ${totalSlotsAvailable} slots across ${config.totalDays} days.\n` +
-        `• Required Slots: At least ${maxExamsInAnySemester} slots needed for ${worstSemEntry ? worstSemEntry[0] : 'your semester courses'}.\n` +
-        `Please increase Total Days or add more Slots/Shifts per Day in Section 1.`
-      )
-    }
+      if (totalSlotsAvailable < maxExamsInAnySemester) {
+        const worstSemEntry = Object.entries(coursesPerSem).find(([_, count]) => count === maxExamsInAnySemester)
+        alerts.push(
+          `⚠️ INSUFFICIENT SLOTS:\n` +
+          `• Available Slots: ${totalSlotsAvailable} slots across ${config.totalDays} days.\n` +
+          `• Required Slots: At least ${maxExamsInAnySemester} slots needed for ${worstSemEntry ? worstSemEntry[0] : 'your semester courses'}.\n` +
+          `Please increase Total Days or add more Slots/Shifts per Day in Section 1.`
+        )
+      }
 
-    if (totalSingleSlotRoomCapacity < maxStudentsInSingleSemester) {
-      alerts.push(
-        `⚠️ INSUFFICIENT SEATING CAPACITY:\n` +
-        `• Usable Seating Capacity: ${totalSingleSlotRoomCapacity} seats across ${activeRooms.length} active rooms/labs.\n` +
-        `• Students in Cohort: ~${maxStudentsInSingleSemester} students need seats in concurrent sessions.\n` +
-        `Please enable more rooms or increase bench/workstation capacities in Section 4.`
-      )
-    }
+      if (totalSingleSlotRoomCapacity < maxStudentsInSingleSemester) {
+        alerts.push(
+          `⚠️ INSUFFICIENT SEATING CAPACITY:\n` +
+          `• Usable Seating Capacity: ${totalSingleSlotRoomCapacity} seats across ${activeRooms.length} active rooms/labs.\n` +
+          `• Students in Cohort: ~${maxStudentsInSingleSemester} students need seats in concurrent sessions.\n` +
+          `Please enable more rooms or increase bench/workstation capacities in Section 4.`
+        )
+      }
 
-    if (alerts.length > 0) {
-      window.alert(
-        `[ExamGrid Capacity Alert]\n\n` +
-        alerts.join('\n\n') +
-        `\n\nProceeding to generate best possible partial timetable.`
-      )
+      if (alerts.length > 0) {
+        window.alert(
+          `[ExamGrid Capacity Alert]\n\n` +
+          alerts.join('\n\n') +
+          `\n\nProceeding to generate best possible partial timetable.`
+        )
+      }
     }
 
     setRunning(true)

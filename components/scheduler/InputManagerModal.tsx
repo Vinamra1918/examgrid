@@ -312,51 +312,163 @@ export function InputManagerModal({
                   </select>
                 </div>
 
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-foreground">
-                    Available Exam Days
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="30"
-                    value={config.totalDays}
-                    onChange={(e) =>
-                      setConfig({ ...config, totalDays: Number(e.target.value) || 1 })
-                    }
-                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-primary focus:outline-hidden"
-                  />
-                </div>
+                {config.examType === 'quiz' ? (
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-foreground">Quiz Duration per Subject</label>
+                    <select
+                      value={config.labDurationMinutes || 15}
+                      onChange={(e) =>
+                        setConfig({ ...config, labDurationMinutes: Number(e.target.value) })
+                      }
+                      className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-primary focus:outline-hidden"
+                    >
+                      <option value={10}>10 Minutes (Rapid Evaluation)</option>
+                      <option value={15}>15 Minutes (Standard Lab Quiz)</option>
+                      <option value={20}>20 Minutes</option>
+                      <option value={30}>30 Minutes</option>
+                      <option value={45}>45 Minutes</option>
+                      <option value={60}>60 Minutes (Full Lab Practical)</option>
+                    </select>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-foreground">
+                      Available Exam Days
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="30"
+                      value={config.totalDays}
+                      onChange={(e) =>
+                        setConfig({ ...config, totalDays: Number(e.target.value) || 1 })
+                      }
+                      className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-primary focus:outline-hidden"
+                    />
+                  </div>
+                )}
 
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-foreground">Start Date</label>
-                  <input
-                    type="date"
-                    value={config.startDate}
-                    onChange={(e) => setConfig({ ...config, startDate: e.target.value })}
-                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-primary focus:outline-hidden"
-                  />
-                </div>
+                {config.examType !== 'quiz' && (
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-foreground">Start Date</label>
+                    <input
+                      type="date"
+                      value={config.startDate}
+                      onChange={(e) => setConfig({ ...config, startDate: e.target.value })}
+                      className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-primary focus:outline-hidden"
+                    />
+                  </div>
+                )}
 
-                <div className="flex flex-col gap-1.5 sm:col-span-2">
-                  <label className="text-xs font-bold text-foreground">
-                    Bench Seating Arrangement Mode
-                  </label>
-                  <select
-                    value={config.seatingMode}
-                    onChange={(e) =>
-                      setConfig({ ...config, seatingMode: e.target.value as any })
-                    }
-                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-primary focus:outline-hidden"
-                  >
-                    <option value="interleave_two_exams">
-                      Interleave 2 Different Exams on Same Bench (Seat 1 = Course A, Seat 2 = Course B to prevent copying)
-                    </option>
-                    <option value="single_exam_per_bench">
-                      Single Exam per Bench (Standard seating)
-                    </option>
-                  </select>
-                </div>
+                {config.examType === 'quiz' ? (
+                  <div className="flex flex-col gap-3 sm:col-span-2 rounded-2xl border border-indigo-200 bg-indigo-50/40 p-4">
+                    <span className="text-xs font-bold text-indigo-950">
+                      Select Academic Years for Lab Quizzes (Yes / No)
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {(['1st Year', '2nd Year', '3rd Year', '4th Year'] as AcademicYear[]).map((year) => {
+                        const currentYearCfg = config.quizYearConfigs?.[year] || {
+                          enabled: false,
+                          date: '',
+                          startTime: '',
+                        }
+                        const isEnabled = currentYearCfg.enabled
+
+                        return (
+                          <div
+                            key={year}
+                            className={`flex flex-col justify-between rounded-xl border p-3 bg-white ${
+                              isEnabled ? 'border-indigo-300 ring-1 ring-indigo-200' : 'border-slate-200 opacity-60'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-slate-800">{year}</span>
+                              <div className="flex items-center rounded-lg border border-slate-200 bg-slate-100 p-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = { ...(config.quizYearConfigs || {}) }
+                                    updated[year] = { ...currentYearCfg, enabled: true }
+                                    setConfig({ ...config, quizYearConfigs: updated as any })
+                                  }}
+                                  className={`rounded px-2 py-0.5 text-[10px] font-bold ${
+                                    isEnabled ? 'bg-indigo-600 text-white' : 'text-slate-600'
+                                  }`}
+                                >
+                                  Yes
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = { ...(config.quizYearConfigs || {}) }
+                                    updated[year] = { ...currentYearCfg, enabled: false }
+                                    setConfig({ ...config, quizYearConfigs: updated as any })
+                                  }}
+                                  className={`rounded px-2 py-0.5 text-[10px] font-bold ${
+                                    !isEnabled ? 'bg-slate-700 text-white' : 'text-slate-600'
+                                  }`}
+                                >
+                                  No
+                                </button>
+                              </div>
+                            </div>
+
+                            {isEnabled && (
+                              <div className="mt-2.5 pt-2 border-t border-slate-100 grid grid-cols-2 gap-2">
+                                <div>
+                                  <span className="text-[9px] text-slate-500 font-bold block">Date</span>
+                                  <input
+                                    type="date"
+                                    value={currentYearCfg.date || config.startDate}
+                                    onChange={(e) => {
+                                      const updated = { ...(config.quizYearConfigs || {}) }
+                                      updated[year] = { ...currentYearCfg, date: e.target.value }
+                                      setConfig({ ...config, quizYearConfigs: updated as any })
+                                    }}
+                                    className="mt-0.5 w-full rounded border border-slate-200 px-1.5 py-1 text-[11px] text-slate-900"
+                                  />
+                                </div>
+                                <div>
+                                  <span className="text-[9px] text-slate-500 font-bold block">Start Time</span>
+                                  <input
+                                    type="time"
+                                    value={currentYearCfg.startTime || '16:00'}
+                                    onChange={(e) => {
+                                      const updated = { ...(config.quizYearConfigs || {}) }
+                                      updated[year] = { ...currentYearCfg, startTime: e.target.value }
+                                      setConfig({ ...config, quizYearConfigs: updated as any })
+                                    }}
+                                    className="mt-0.5 w-full rounded border border-slate-200 px-1.5 py-1 text-[11px] font-bold text-slate-900"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-1.5 sm:col-span-2">
+                    <label className="text-xs font-bold text-foreground">
+                      Bench Seating Arrangement Mode
+                    </label>
+                    <select
+                      value={config.seatingMode}
+                      onChange={(e) =>
+                        setConfig({ ...config, seatingMode: e.target.value as any })
+                      }
+                      className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-primary focus:outline-hidden"
+                    >
+                      <option value="interleave_two_exams">
+                        Interleave 2 Different Exams on Same Bench (Seat 1 = Course A, Seat 2 = Course B to prevent copying)
+                      </option>
+                      <option value="single_exam_per_bench">
+                        Single Exam per Bench (Standard seating)
+                      </option>
+                    </select>
+                  </div>
+                )}
               </div>
             </div>
           )}

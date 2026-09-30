@@ -838,7 +838,15 @@ export function InputsManagementView({
           { id: 'sec-students', label: `3. Students (${activeStudentsCount}/${students.length} active)`, icon: GraduationCap },
           { id: 'sec-rooms', label: `4. Rooms & Labs (${activeRoomsCount}/${rooms.length} active)`, icon: Building2 },
           { id: 'sec-teachers', label: `5. Faculty (${activeTeachersCount}/${teachers.length} active)`, icon: UserCheck },
-          { id: 'sec-fixed-slots', label: `6. Pin Courses to Slots (${Object.keys(config.fixedCourseSlots || {}).length} pinned)`, icon: Pin },
+          ...(config.examType !== 'quiz'
+            ? [
+                {
+                  id: 'sec-fixed-slots',
+                  label: `6. Pin Courses to Slots (${Object.keys(config.fixedCourseSlots || {}).length} pinned)`,
+                  icon: Pin,
+                },
+              ]
+            : []),
         ].map((item) => {
           const Icon = item.icon
           return (
@@ -902,53 +910,224 @@ export function InputsManagementView({
               </div>
             </div>
 
-            {/* Inputs Grid: Start Date, End Date, Holidays & Seating Strategy */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div>
-                <label className="text-xs font-semibold text-slate-700">Exam Title / Label</label>
-                <input
-                  type="text"
-                  value={config.title}
-                  onChange={(e) => setConfig({ ...config, title: e.target.value })}
-                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-semibold text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none transition-colors"
-                />
-              </div>
+            {/* Inputs Grid */}
+            {config.examType === 'quiz' ? (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700">
+                    Lab Evaluation / Quiz Title
+                  </label>
+                  <input
+                    type="text"
+                    value={config.title}
+                    placeholder="e.g. Autumn Lab Quizzes & Evaluations"
+                    onChange={(e) => setConfig({ ...config, title: e.target.value })}
+                    className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-semibold text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none transition-colors"
+                  />
+                </div>
 
-              <div>
-                <label className="text-xs font-semibold text-slate-700">Exam Start Date</label>
-                <input
-                  type="date"
-                  value={config.startDate}
-                  onChange={(e) => setConfig({ ...config, startDate: e.target.value })}
-                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-semibold text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none transition-colors"
-                />
+                <div>
+                  <label className="text-xs font-semibold text-slate-700">Quiz Duration per Subject</label>
+                  <select
+                    value={config.labDurationMinutes || 15}
+                    onChange={(e) => setConfig({ ...config, labDurationMinutes: Number(e.target.value) })}
+                    className="mt-1.5 w-full rounded-xl border border-indigo-200 bg-indigo-50/50 px-3.5 py-2.5 text-xs font-bold text-indigo-900 focus:border-indigo-500 focus:bg-white focus:outline-none transition-colors"
+                  >
+                    <option value={10}>10 Minutes (Rapid Evaluation)</option>
+                    <option value={15}>15 Minutes (Standard Lab Quiz)</option>
+                    <option value={20}>20 Minutes</option>
+                    <option value={30}>30 Minutes</option>
+                    <option value={45}>45 Minutes</option>
+                    <option value={60}>60 Minutes (Full Lab Practical)</option>
+                  </select>
+                </div>
               </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700">Exam Title / Label</label>
+                  <input
+                    type="text"
+                    value={config.title}
+                    placeholder="e.g. Mid-Semester Examination"
+                    onChange={(e) => setConfig({ ...config, title: e.target.value })}
+                    className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-semibold text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none transition-colors"
+                  />
+                </div>
 
-              <div>
-                <label className="text-xs font-semibold text-slate-700">Exam End Date</label>
-                <input
-                  type="date"
-                  value={config.endDate || config.startDate}
-                  onChange={(e) => setConfig({ ...config, endDate: e.target.value })}
-                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-semibold text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none transition-colors"
-                />
+                <div>
+                  <label className="text-xs font-semibold text-slate-700">Exam Start Date</label>
+                  <input
+                    type="date"
+                    value={config.startDate}
+                    onChange={(e) => setConfig({ ...config, startDate: e.target.value })}
+                    className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-semibold text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700">Exam End Date</label>
+                  <input
+                    type="date"
+                    value={config.endDate || config.startDate}
+                    onChange={(e) => setConfig({ ...config, endDate: e.target.value })}
+                    className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-semibold text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700">Seating Strategy</label>
+                  <select
+                    value={config.seatingMode}
+                    onChange={(e) => setConfig({ ...config, seatingMode: e.target.value as any })}
+                    className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-semibold text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none transition-colors"
+                  >
+                    <option value="interleave_two_exams">Interleave 2 Courses (Anti-Cheating)</option>
+                    <option value="single_exam_per_bench">Single Course per Bench</option>
+                  </select>
+                </div>
               </div>
+            )}
 
-              <div>
-                <label className="text-xs font-semibold text-slate-700">Seating Strategy</label>
-                <select
-                  value={config.seatingMode}
-                  onChange={(e) => setConfig({ ...config, seatingMode: e.target.value as any })}
-                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-semibold text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none transition-colors"
-                >
-                  <option value="interleave_two_exams">Interleave 2 Courses (Anti-Cheating)</option>
-                  <option value="single_exam_per_bench">Single Course per Bench</option>
-                </select>
+            {/* Lab Quiz Academic Year Selector & Schedule Setup */}
+            {config.examType === 'quiz' && (
+              <div className="rounded-2xl border border-indigo-200 bg-gradient-to-b from-indigo-50/60 to-white p-5 shadow-xs flex flex-col gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-indigo-100 pb-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="flex size-6 items-center justify-center rounded-lg bg-indigo-600 text-xs font-bold text-white shadow-2xs">
+                        🔬
+                      </span>
+                      <h4 className="text-sm font-bold text-indigo-950">
+                        Select Academic Years for Lab Quizzes
+                      </h4>
+                    </div>
+                    <p className="text-[11px] text-indigo-800 mt-1">
+                      Choose which years to conduct the quiz (Yes / No). For each active year, configure the Quiz Date and Start Time. One whole year (both Sem A & B) will be seated at that time across available lab workstations.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        const allActive: any = {
+                          '1st Year': { enabled: true, date: config.startDate || '', startTime: '16:00' },
+                          '2nd Year': { enabled: true, date: config.startDate || '', startTime: '16:00' },
+                          '3rd Year': { enabled: true, date: config.startDate || '', startTime: '16:00' },
+                          '4th Year': { enabled: true, date: config.startDate || '', startTime: '16:00' },
+                        }
+                        setConfig({ ...config, quizYearConfigs: allActive })
+                      }}
+                      className="rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-xs font-bold text-indigo-700 hover:bg-indigo-50 shadow-2xs"
+                    >
+                      Enable All Years
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                  {(['1st Year', '2nd Year', '3rd Year', '4th Year'] as AcademicYear[]).map((year) => {
+                    const currentYearCfg = config.quizYearConfigs?.[year] || {
+                      enabled: false,
+                      date: '',
+                      startTime: '',
+                    }
+                    const isEnabled = currentYearCfg.enabled
+                    const yearCourses = courses.filter((c) => c.year === year && (c.type === 'lab_quiz' || c.code.includes('LAB') || c.name.toLowerCase().includes('lab')))
+
+                    return (
+                      <div
+                        key={year}
+                        className={`flex flex-col justify-between rounded-xl border p-4 transition-all ${
+                          isEnabled
+                            ? 'border-indigo-300 bg-white ring-1 ring-indigo-200 shadow-xs'
+                            : 'border-slate-200 bg-slate-50/70 opacity-65'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-extrabold text-slate-900">{year}</span>
+                            <div className="flex items-center rounded-lg border border-slate-200 bg-slate-100 p-0.5">
+                              <button
+                                onClick={() => {
+                                  const updated = { ...(config.quizYearConfigs || {}) }
+                                  updated[year] = { ...currentYearCfg, enabled: true }
+                                  setConfig({ ...config, quizYearConfigs: updated as any })
+                                }}
+                                className={`rounded-md px-2.5 py-0.5 text-[11px] font-bold transition-all ${
+                                  isEnabled
+                                    ? 'bg-indigo-600 text-white shadow-2xs'
+                                    : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                              >
+                                Yes
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const updated = { ...(config.quizYearConfigs || {}) }
+                                  updated[year] = { ...currentYearCfg, enabled: false }
+                                  setConfig({ ...config, quizYearConfigs: updated as any })
+                                }}
+                                className={`rounded-md px-2.5 py-0.5 text-[11px] font-bold transition-all ${
+                                  !isEnabled
+                                    ? 'bg-slate-700 text-white shadow-2xs'
+                                    : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                              >
+                                No
+                              </button>
+                            </div>
+                          </div>
+
+                          <p className="mt-1 text-[11px] text-slate-500">
+                            {yearCourses.length} Lab subjects registered
+                          </p>
+                        </div>
+
+                        {isEnabled && (
+                          <div className="mt-3.5 pt-3 border-t border-indigo-100 flex flex-col gap-2.5">
+                            <div>
+                              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block">
+                                Quiz Date
+                              </span>
+                              <input
+                                type="date"
+                                value={currentYearCfg.date || config.startDate}
+                                onChange={(e) => {
+                                  const updated = { ...(config.quizYearConfigs || {}) }
+                                  updated[year] = { ...currentYearCfg, date: e.target.value }
+                                  setConfig({ ...config, quizYearConfigs: updated as any })
+                                }}
+                                className="mt-1 w-full rounded-lg border border-indigo-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:border-indigo-500 focus:outline-none"
+                              />
+                            </div>
+
+                            <div>
+                              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block">
+                                Start Time
+                              </span>
+                              <input
+                                type="time"
+                                value={currentYearCfg.startTime || '16:00'}
+                                onChange={(e) => {
+                                  const updated = { ...(config.quizYearConfigs || {}) }
+                                  updated[year] = { ...currentYearCfg, startTime: e.target.value }
+                                  setConfig({ ...config, quizYearConfigs: updated as any })
+                                }}
+                                className="mt-1 w-full rounded-lg border border-indigo-200 bg-white px-2.5 py-1.5 text-xs font-bold text-indigo-900 focus:border-indigo-500 focus:outline-none"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Multiple Holidays & Non-Exam Days Picker */}
-            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+            {/* Multiple Holidays & Non-Exam Days Picker (MST Only) */}
+            {config.examType !== 'quiz' && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
@@ -1013,107 +1192,110 @@ export function InputsManagementView({
                 )}
               </div>
             </div>
+            )}
 
-            {/* Default Daily Shift Slots Setup */}
-            <div>
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                    Default Daily Slots Template (Applies to All Days)
-                  </label>
-                  <p className="text-[11px] text-slate-500">
-                    Set the default baseline slots per day. You can also customize slots for specific days below.
-                  </p>
-                </div>
+            {/* Default Daily Shift Slots Setup (MST Theory Mode Only) */}
+            {config.examType !== 'quiz' && (
+              <div>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                      Default Daily Slots Template (Applies to All Days)
+                    </label>
+                    <p className="text-[11px] text-slate-500">
+                      Set the default baseline slots per day. You can also customize slots for specific days below.
+                    </p>
+                  </div>
 
-                {/* Slot Count Selector */}
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-slate-600">Default Slots:</span>
-                  <div className="flex items-center rounded-lg border border-slate-200 bg-slate-100 p-0.5">
-                    {[1, 2, 3, 4].map((num) => (
-                      <button
-                        key={num}
-                        onClick={() => {
-                          const currentSlots = [...config.slotsPerDay]
-                          const defaultTimes = ['09:30', '11:30', '14:00', '16:30']
-                          let newSlots: any[] = []
-                          for (let i = 0; i < num; i++) {
-                            if (currentSlots[i]) {
-                              newSlots.push(currentSlots[i])
-                            } else {
-                              newSlots.push({
-                                id: `slot_${i + 1}`,
-                                label: `Slot ${i + 1}`,
-                                startTime: defaultTimes[i] || '09:30',
-                              })
+                  {/* Slot Count Selector */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-600">Default Slots:</span>
+                    <div className="flex items-center rounded-lg border border-slate-200 bg-slate-100 p-0.5">
+                      {[1, 2, 3, 4].map((num) => (
+                        <button
+                          key={num}
+                          onClick={() => {
+                            const currentSlots = [...config.slotsPerDay]
+                            const defaultTimes = ['09:30', '11:30', '14:00', '16:30']
+                            let newSlots: any[] = []
+                            for (let i = 0; i < num; i++) {
+                              if (currentSlots[i]) {
+                                newSlots.push(currentSlots[i])
+                              } else {
+                                newSlots.push({
+                                  id: `slot_${i + 1}`,
+                                  label: `Slot ${i + 1}`,
+                                  startTime: defaultTimes[i] || '09:30',
+                                })
+                              }
                             }
-                          }
-                          setConfig({ ...config, slotsPerDay: newSlots })
-                        }}
-                        className={`rounded-md px-3 py-1 text-xs font-bold transition-all ${
-                          config.slotsPerDay.length === num
-                            ? 'bg-blue-600 text-white shadow-xs'
-                            : 'text-slate-600 hover:text-slate-900'
-                        }`}
-                      >
-                        {num} {num === 1 ? 'Slot' : 'Slots'}
-                      </button>
-                    ))}
+                            setConfig({ ...config, slotsPerDay: newSlots })
+                          }}
+                          className={`rounded-md px-3 py-1 text-xs font-bold transition-all ${
+                            config.slotsPerDay.length === num
+                              ? 'bg-blue-600 text-white shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          {num} {num === 1 ? 'Slot' : 'Slots'}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Slot Cards with Time Pickers */}
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {config.slotsPerDay.map((slot, idx) => (
-                  <div
-                    key={slot.id || idx}
-                    className="flex flex-col gap-2 rounded-xl border border-blue-200 bg-blue-50/40 p-3.5 shadow-2xs"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-blue-900">
-                        Default Shift #{idx + 1}
-                      </span>
-                      <span className="rounded bg-blue-100 px-1.5 py-0.2 text-[10px] font-bold text-blue-700">
-                        Template
-                      </span>
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                      <div>
-                        <span className="text-[10px] font-semibold text-slate-500">Slot Label</span>
-                        <input
-                          type="text"
-                          value={slot.label}
-                          onChange={(e) => {
-                            const updated = [...config.slotsPerDay]
-                            updated[idx].label = e.target.value
-                            setConfig({ ...config, slotsPerDay: updated })
-                          }}
-                          className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
-                        />
+                {/* Slot Cards with Time Pickers */}
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {config.slotsPerDay.map((slot, idx) => (
+                    <div
+                      key={slot.id || idx}
+                      className="flex flex-col gap-2 rounded-xl border border-blue-200 bg-blue-50/40 p-3.5 shadow-2xs"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-blue-900">
+                          Default Shift #{idx + 1}
+                        </span>
+                        <span className="rounded bg-blue-100 px-1.5 py-0.2 text-[10px] font-bold text-blue-700">
+                          Template
+                        </span>
                       </div>
-                      <div>
-                        <span className="text-[10px] font-semibold text-slate-500">Clock Start Time</span>
-                        <input
-                          type="time"
-                          value={slot.startTime}
-                          onChange={(e) => {
-                            const updated = [...config.slotsPerDay]
-                            updated[idx].startTime = e.target.value
-                            setConfig({ ...config, slotsPerDay: updated })
-                          }}
-                          className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
-                        />
+
+                      <div className="flex flex-col gap-1.5">
+                        <div>
+                          <span className="text-[10px] font-semibold text-slate-500">Slot Label</span>
+                          <input
+                            type="text"
+                            value={slot.label}
+                            onChange={(e) => {
+                              const updated = [...config.slotsPerDay]
+                              updated[idx].label = e.target.value
+                              setConfig({ ...config, slotsPerDay: updated })
+                            }}
+                            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-semibold text-slate-500">Clock Start Time</span>
+                          <input
+                            type="time"
+                            value={slot.startTime}
+                            onChange={(e) => {
+                              const updated = [...config.slotsPerDay]
+                              updated[idx].startTime = e.target.value
+                              setConfig({ ...config, slotsPerDay: updated })
+                            }}
+                            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Individual Day-by-Day Slot Customizer */}
-            {(() => {
+            {/* Individual Day-by-Day Slot Customizer (MST Theory Mode Only) */}
+            {config.examType !== 'quiz' && (() => {
               // Compute active days list safely avoiding UTC shift
               const parseLocal = (s: string) => {
                 const parts = s.split('-').map(Number)
@@ -2661,9 +2843,10 @@ export function InputsManagementView({
       </section>
 
       {/* ========================================================================= */}
-      {/* SECTION 6: PIN / FIX COURSES TO SLOTS (OPTIONAL) */}
+      {/* SECTION 6: PIN / FIX COURSES TO SLOTS (OPTIONAL, MST ONLY) */}
       {/* ========================================================================= */}
-      <section id="sec-fixed-slots" className="scroll-mt-36 rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50/40 via-white to-white p-6 shadow-sm">
+      {config.examType !== 'quiz' && (
+        <section id="sec-fixed-slots" className="scroll-mt-36 rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50/40 via-white to-white p-6 shadow-sm">
         <div className="flex items-center justify-between border-b border-amber-100 pb-4">
           <div className="flex items-center gap-3">
             <div className="flex size-10 items-center justify-center rounded-xl bg-amber-100 text-amber-800 border border-amber-300">
@@ -2950,7 +3133,7 @@ export function InputsManagementView({
                                           key={`${d.dayNumber}_${sIdx}`}
                                           value={`${d.dayNumber}_${sIdx}`}
                                         >
-                                          Day {d.dayNumber} ({s.timeSlot || `Shift ${sIdx + 1}`})
+                                          Day {d.dayNumber} ({s.startTime || s.label || `Shift ${sIdx + 1}`})
                                         </option>
                                       ))
                                     })}
@@ -3043,7 +3226,7 @@ export function InputsManagementView({
                                         Shift {sIdx + 1}
                                       </span>
                                       <span className="text-[10px] text-slate-500 font-medium">
-                                        {slot.timeSlot || 'Slot Time'}
+                                        {slot.startTime || slot.label || 'Slot Time'}
                                       </span>
                                     </div>
 
@@ -3127,6 +3310,7 @@ export function InputsManagementView({
           </div>
         )}
       </section>
+      )}
 
       {/* Floating Action Bar at bottom */}
       <div className="flex items-center justify-between rounded-2xl border border-blue-100 bg-blue-50/90 p-4 shadow-sm">

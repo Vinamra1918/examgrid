@@ -39,6 +39,7 @@ export interface Course {
   semester?: AcademicSemester | string
   department: string
   type: 'theory' | 'lab_quiz'
+  durationMinutes?: number
   enrolledStudentCount?: number
   included?: boolean // When false, course is preserved in memory/list but not scheduled
 }
@@ -97,6 +98,14 @@ export interface ExamSessionConfig {
   fixedCourseSlots?: Record<string, { dayNumber: number; slotIndex: number }> // User-defined pinned courses (courseCode -> { dayNumber, slotIndex })
   seatingMode: SeatingMode
   allowTwoExamsInOneRoom: boolean
+  quizYearConfigs?: Record<
+    AcademicYear,
+    {
+      enabled: boolean
+      date?: string // 'YYYY-MM-DD'
+      startTime?: string // '16:00'
+    }
+  >
 }
 
 export interface BenchSeatAssignment {

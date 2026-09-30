@@ -11,6 +11,7 @@ import {
   Teacher,
   TeacherPriority,
 } from './types'
+import { generateLabQuizSchedule } from './quiz-scheduler-engine'
 
 function normalizeSectionLabel(value?: string): string | undefined {
   if (!value) return undefined
@@ -33,6 +34,11 @@ export function generateSchedule(
   rooms: Room[],
   teachers: Teacher[]
 ): ScheduleResult {
+  // If examType is Quiz, delegate to the dedicated Lab Quiz Scheduler (MST remains 100% locked & unchanged)
+  if (config.examType === 'quiz') {
+    return generateLabQuizSchedule(config, students, courses, rooms, teachers)
+  }
+
   const constraintViolations: string[] = []
 
   // Filter only items marked as included (defaulting to true)
@@ -860,8 +866,6 @@ export function generateSchedule(
         const [eh, em] = slotConfig.endTime.split(':').map(Number)
         const diff = (eh * 60 + em) - (sh * 60 + sm)
         if (diff > 0) slotDurationMinutes = diff
-      } else if (config.examType === 'quiz') {
-        slotDurationMinutes = config.labDurationMinutes || 60
       } else {
         slotDurationMinutes = config.theoryDurationMinutes || 60
       }

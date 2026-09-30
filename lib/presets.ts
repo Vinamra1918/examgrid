@@ -320,10 +320,16 @@ export const defaultExamConfigs: Record<'mst' | 'quiz', ExamSessionConfig> = {
     holidays: [],
     totalDays: 0,
     theoryDurationMinutes: 60,
-    labDurationMinutes: 60,
+    labDurationMinutes: 15,
     slotsPerDay: [],
     daySpecificSlots: {},
     seatingMode: 'single_exam_per_bench',
     allowTwoExamsInOneRoom: false,
+    quizYearConfigs: {
+      '1st Year': { enabled: false, date: '', startTime: '' },
+      '2nd Year': { enabled: false, date: '', startTime: '' },
+      '3rd Year': { enabled: false, date: '', startTime: '' },
+      '4th Year': { enabled: false, date: '', startTime: '' },
+    },
   },
 }
