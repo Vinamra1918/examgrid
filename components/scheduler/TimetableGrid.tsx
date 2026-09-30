@@ -479,6 +479,9 @@ export function TimetableGrid({
                                     {c.semester}
                                   </span>
                                 )}
+                                {c.sections?.map((section) => (
+                                  <span key={section} className="rounded bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">{section}</span>
+                                ))}
                               </div>
                               <span
                                 className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${

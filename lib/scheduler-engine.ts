@@ -19,6 +19,13 @@ function normalizeSectionLabel(value?: string): string | undefined {
   return match ? `Section ${match[1].toUpperCase()}` : undefined
 }
 
+function formatClockTime(value: string): string {
+  const [hourValue, minuteValue] = value.split(':').map(Number)
+  if (!Number.isFinite(hourValue) || !Number.isFinite(minuteValue)) return value
+  const suffix = hourValue >= 12 ? 'PM' : 'AM'
+  const hour = hourValue % 12 || 12
+  return `${hour}:${String(minuteValue).padStart(2, '0')} ${suffix}`
+}
 export function generateSchedule(
   config: ExamSessionConfig,
   students: Student[],
@@ -873,7 +880,7 @@ export function generateSchedule(
         dayNumber: day,
         date: formattedDate,
         slotLabel: slotConfig.label,
-        timeRange: `${slotConfig.startTime} – ${computedEndTime || '10:30'}`,
+        timeRange: `${formatClockTime(slotConfig.startTime || '09:30')} – ${formatClockTime(computedEndTime || '10:30')}`,
         examType: config.examType,
         scheduledCourses: slotCourses.map((c) => {
           return {

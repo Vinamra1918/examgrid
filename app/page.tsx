@@ -426,7 +426,6 @@ export default function Page() {
                 </button>
               ))}
             </div>
-
             {/* Manage Parameters / All Inputs Button */}
             <button
               onClick={() => setActiveTab('inputs')}
