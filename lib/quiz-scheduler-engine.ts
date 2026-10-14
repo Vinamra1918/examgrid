@@ -335,6 +335,11 @@ export function generateLabQuizSchedule(
         let roomIdx = 0
         while (studentQueuesByCourse.some((q) => q.students.length > 0) && roomIdx < usableRooms.length) {
           const room = usableRooms[roomIdx++]
+          
+          if (room.unavailableDates && room.unavailableDates.includes(plan.dateIso)) {
+            continue
+          }
+          
           const totalTerminals = room.totalBenches || 30
           const cols = room.columns || Math.min(10, totalTerminals)
           const benches: BenchAssignment[] = []

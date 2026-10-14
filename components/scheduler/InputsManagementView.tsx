@@ -2610,6 +2610,20 @@ export function InputsManagementView({
                           <span className="font-bold">{capacity}</span>
                         </div>
                       </div>
+                      
+                      <div className="mt-3">
+                        <span className="block text-[10px] text-slate-500 font-semibold mb-1">Unavailable Dates (YYYY-MM-DD, comma separated)</span>
+                        <input
+                          type="text"
+                          placeholder="e.g. 2024-05-15, 2024-05-16"
+                          value={r.unavailableDates?.join(', ') || ''}
+                          onChange={(e) => {
+                            const val = e.target.value.split(',').map(d => d.trim()).filter(Boolean)
+                            setRooms(prev => prev.map(item => item.id === r.id ? { ...item, unavailableDates: val.length > 0 ? val : undefined } : item))
+                          }}
+                          className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800 focus:border-emerald-500 focus:outline-none placeholder:text-slate-300"
+                        />
+                      </div>
                     </div>
                   )
                 })}

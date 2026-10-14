@@ -63,6 +63,7 @@ export interface Room {
   invigilatorsRequired?: number // Number of teachers needed for this room (e.g. 2 for big halls like LT, 1 for regular rooms/labs)
   allowSameCourseOnBench: boolean
   included?: boolean // When false, room is omitted from timetable room allocation
+  unavailableDates?: string[] // array of 'YYYY-MM-DD' dates when room is excluded
 }
 
 export interface Teacher {

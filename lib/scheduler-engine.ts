@@ -162,7 +162,7 @@ export function generateSchedule(
   }
 
   const holidaysSet = new Set(config.holidays || [])
-  const examDates: { dayNumber: number; dateStr: string; dateObj: Date }[] = []
+  const examDates: { dayNumber: number; dateStr: string; dateObj: Date; isoDate: string }[] = []
 
   const startD = parseLocalDate(config.startDate || '2025-05-12')
   const endD = parseLocalDate(config.endDate || config.startDate || '2025-05-16')
@@ -193,6 +193,7 @@ export function generateSchedule(
         dayNumber: dayCounter++,
         dateStr: formattedDate,
         dateObj: new Date(curr),
+        isoDate,
       })
     }
     curr.setDate(curr.getDate() + 1)
@@ -203,10 +204,14 @@ export function generateSchedule(
     for (let d = 1; d <= (config.totalDays || 4); d++) {
       const dt = new Date(startD)
       dt.setDate(dt.getDate() + (d - 1))
+      const yyyy = dt.getFullYear()
+      const mm = String(dt.getMonth() + 1).padStart(2, '0')
+      const dd = String(dt.getDate()).padStart(2, '0')
       examDates.push({
         dayNumber: d,
         dateStr: dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),
         dateObj: dt,
+        isoDate: `${yyyy}-${mm}-${dd}`,
       })
     }
   }
@@ -509,6 +514,12 @@ export function generateSchedule(
       let roomIdx = 0
       while (studentQueues.some((sq) => sq.students.length > 0) && roomIdx < usableRooms.length) {
         const room = usableRooms[roomIdx]
+        
+        // Skip this room if it's explicitly marked as unavailable for today
+        if (room.unavailableDates && room.unavailableDates.includes(dateItem.isoDate)) {
+          roomIdx++
+          continue
+        }
         const benchCapacity = room.benchCapacity || 2
         const totalBenches = room.totalBenches || 10
         const cols = room.columns || 2

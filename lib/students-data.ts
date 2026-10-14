@@ -175,15 +175,38 @@ export const rawStudentsTemplate: RawStudentTemplate[] = [
   { rollNo: '0801CS221127', name: 'Shailendra Golsar', section: 'B2' },
 ]
 
-// Semester 3 (2nd Year – Sem A Odd) Course Codes
-const sem3Courses = ['MA-301', 'CS-301', 'CS-302', 'EC-301', 'HU-301', 'CS-301-LAB', 'CS-302-LAB', 'EC-301-LAB', 'CS-303-LAB', 'EC-302-LAB']
-// Semester 4 (2nd Year – Sem B Even) Course Codes
-const sem4Courses = ['CS-401', 'MA-401', 'CS-402', 'CS-403', 'EC-401', 'CS-402-LAB', 'CS-404-LAB', 'EC-401-LAB', 'CS-405-LAB', 'HU-401', 'MC-401', 'IN-401-LAB']
+// Semester 3 (2nd Year – Section A) Course Codes
+const sem3Courses = [
+  'CO_Computer Architecture',
+  'CO_Object Oriented Programming Systems',
+  'MA_Applied Mathematics',
+  'EC_Microprocessors & Microcontrollers',
+  'Elective from CoE/SARTHI-1_Economics for Engineers'
+]
+// Semester 4 (2nd Year – Section B) Course Codes
+const sem4Courses = [
+  'CO_Discrete Structures',
+  'CO_Data Structures',
+  'EC_Digital Communication',
+  'CO_Agile Software Methodology',
+  'Elective from COE/SARTHI-2 UHV'
+]
 
-// Semester 5 (3rd Year – Sem A Odd) Course Codes
-const sem5Courses = ['CS-501', 'CS-502', 'CS-503', 'CS-504', 'CS-503-LAB', 'CS-504-LAB', 'IN-501-LAB', 'HU-501', 'PR-501-LAB']
-// Semester 6 (3rd Year – Sem B Even) Course Codes
-const sem6Courses = ['CS-601', 'CS-602', 'CS-603', 'CS-604-E1', 'CS-601-LAB', 'CS-603-LAB', 'CS-602-LAB', 'CS-605-LAB', 'PR-601-LAB']
+// Semester 5 (3rd Year – Section A) Course Codes
+const sem5Courses = [
+  'CO34003 Information Security',
+  'CO34002 Theory of Computation',
+  'CO34017 Computer Networks',
+  'CO34702 Android Application Development',
+  'CO34004 Operating Systems'
+]
+// Semester 6 (3rd Year – Section B) Course Codes
+const sem6Courses = [
+  'CO34501 Database Management Systems',
+  'CO34573 Design & Analysis of Algorithms',
+  'E-1-Co34_DSE Data Science and Engineering / CO34_Artificial Intelligence',
+  'CO34543 Machine Learning'
+]
 
 // Semester 7 (4th Year – Sem A Odd) Course Codes
 const sem7Courses = ['CS-701-E2', 'CS-702-E3', 'CS-703-E4', 'CS-704-LAB', 'IN-701-LAB', 'PR-701-LAB']
