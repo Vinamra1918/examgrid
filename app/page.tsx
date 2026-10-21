@@ -278,7 +278,7 @@ export default function Page() {
     })
     setSectionRotation(rotation)
     setStudents(nextStudents)
-    const result = generateSchedule(config, nextStudents, courses, rooms, teachers)
+    const result = generateSchedule(config, nextStudents, courses, rooms, teachers, teachingAssistants)
     setScheduleResult(result)
     if (result.slots.length > 0) setSelectedSlotForSeating(result.slots[0].slotId)
   }

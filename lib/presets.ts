@@ -335,12 +335,7 @@ export const defaultMstTeachingAssistants: Teacher[] = defaultTeachingAssistants
 export const defaultQuizTeachingAssistants: Teacher[] = defaultTeachingAssistants.map((t) => ({ ...t }))
 
 export const defaultClassSuspensionConfig: ClassSuspensionConfig = {
-  suspendedCohorts: [
-    'B.Tech - 2nd Year',
-    'B.Tech - 3rd Year',
-    'B.Tech - 4th Year',
-    'M.Tech - 1st Year',
-  ],
+  suspendedCohorts: [],
   suspendedCourses: [],
 }
 
@@ -352,9 +347,9 @@ export const defaultTeacherTimetableEntries: TeacherScheduleEntry[] = [
     startTime: '09:30',
     endTime: '10:30',
     program: 'B.Tech',
-    year: '3rd Year',
-    courseCode: 'CS-501',
-    courseName: 'Theory of Computation',
+    year: '1st Year',
+    courseCode: 'CS-101',
+    courseName: 'Programming Fundamentals',
     room: 'LT-101',
   },
   {

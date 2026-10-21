@@ -82,6 +82,14 @@ export function isClassSuspended(
   return false
 }
 
+function cleanPersonName(name?: string): string {
+  if (!name) return ''
+  return name
+    .toLowerCase()
+    .replace(/^(?:dr\.?|prof\.?|mr\.?|ms\.?|mrs\.?)\s+/i, '')
+    .trim()
+}
+
 export function isTeacherAvailableDuringSlot(
   teacher: Teacher,
   examDateIso: string,
@@ -100,6 +108,9 @@ export function isTeacherAvailableDuringSlot(
       const eName = entry.teacherName.trim().toLowerCase()
       const tName = teacher.name.trim().toLowerCase()
       if (eName === tName || tName.includes(eName) || eName.includes(tName)) return true
+      const eClean = cleanPersonName(entry.teacherName)
+      const tClean = cleanPersonName(teacher.name)
+      if (eClean && tClean && (eClean === tClean || tClean.includes(eClean) || eClean.includes(tClean))) return true
     }
     return false
   })
@@ -989,7 +1000,7 @@ export function generateSchedule(
             dateItem.isoDate,
             examDayOfWeek,
             slotConfig.startTime,
-            slotConfig.endTime || '',
+            computedEndTime,
             config.teacherTimetableEntries,
             config.classSuspensionConfig
           )
@@ -1132,7 +1143,7 @@ export function generateSchedule(
             dateItem.isoDate,
             examDayOfWeek,
             slotConfig.startTime,
-            slotConfig.endTime || '',
+            computedEndTime,
             config.teacherTimetableEntries,
             config.classSuspensionConfig
           )

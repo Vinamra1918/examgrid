@@ -179,7 +179,7 @@ export function TeacherTimetableSuspensionSection({
 
   const timetableEntries = config.teacherTimetableEntries || []
   const suspensionConfig = config.classSuspensionConfig || {
-    suspendedCohorts: ['B.Tech - 2nd Year', 'B.Tech - 3rd Year', 'B.Tech - 4th Year', 'M.Tech - 1st Year'],
+    suspendedCohorts: [],
     suspendedCourses: [],
   }
 
