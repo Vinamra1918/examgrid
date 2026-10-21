@@ -52,10 +52,12 @@ import {
   defaultMstRooms,
   defaultMstStudents,
   defaultMstTeachers,
+  defaultMstTeachingAssistants,
   defaultQuizCourses,
   defaultQuizRooms,
   defaultQuizStudents,
   defaultQuizTeachers,
+  defaultQuizTeachingAssistants,
   defaultRooms,
   defaultStudents,
   defaultTeachers,
@@ -99,6 +101,7 @@ export default function Page() {
   const [courses, setCourses] = useState<Course[]>(defaultMstCourses)
   const [rooms, setRooms] = useState<Room[]>(defaultMstRooms)
   const [teachers, setTeachers] = useState<Teacher[]>(defaultMstTeachers)
+  const [teachingAssistants, setTeachingAssistants] = useState<Teacher[]>(defaultMstTeachingAssistants)
 
   // Scheduling result state
   const [scheduleResult, setScheduleResult] = useState<ScheduleResult | null>(null)
@@ -204,7 +207,7 @@ export default function Page() {
     setRunning(true)
     setProgress(0)
     try {
-      const result = generateSchedule(config, students, courses, rooms, teachers)
+      const result = generateSchedule(config, students, courses, rooms, teachers, teachingAssistants)
       setScheduleResult(result)
       if (result.slots.length > 0) {
         setSelectedSlotForSeating(result.slots[0].slotId)
@@ -236,7 +239,7 @@ export default function Page() {
   // Pre-generate default initial schedule on load so all tabs are populated
   useEffect(() => {
     if (!scheduleResult) {
-      const initialResult = generateSchedule(config, students, courses, rooms, teachers)
+      const initialResult = generateSchedule(config, students, courses, rooms, teachers, teachingAssistants)
       setScheduleResult(initialResult)
       if (initialResult.slots.length > 0) {
         setSelectedSlotForSeating(initialResult.slots[0].slotId)
@@ -530,6 +533,8 @@ export default function Page() {
                 setRooms={setRooms}
                 teachers={teachers}
                 setTeachers={setTeachers}
+                teachingAssistants={teachingAssistants}
+                setTeachingAssistants={setTeachingAssistants}
                 config={config}
                 setConfig={setConfig}
                 onSaveAndRerun={handleRunSolver}
@@ -936,6 +941,8 @@ export default function Page() {
         setRooms={setRooms}
         teachers={teachers}
         setTeachers={setTeachers}
+        teachingAssistants={teachingAssistants}
+        setTeachingAssistants={setTeachingAssistants}
         config={config}
         setConfig={setConfig}
         onSaveAndRerun={handleRunSolver}

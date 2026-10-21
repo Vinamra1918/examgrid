@@ -97,17 +97,27 @@ function buildDutyMatrix(scheduleResult: ScheduleResult): {
         ? [alloc.invigilator]
         : []
 
-      const facultyDetails = invigilatorList
+      const facultyText = invigilatorList
         .map((f) => {
           const dept = f.department ? ` (${f.department})` : ''
           return `${f.name}${dept}`
         })
         .join('\n')
 
+      const taList = alloc.teachingAssistants || []
+      const taText = taList
+        .map((ta) => {
+          const dept = ta.department ? ` (${ta.department})` : ''
+          return `[TA] ${ta.name}${dept}`
+        })
+        .join('\n')
+
+      const facultyDetails = [facultyText, taText].filter(Boolean).join('\n')
+
       roomDutyMap[alloc.roomId] = {
         roomName: alloc.roomName,
         facultyDetails,
-        facultyCount: invigilatorList.length,
+        facultyCount: invigilatorList.length + taList.length,
       }
     })
 

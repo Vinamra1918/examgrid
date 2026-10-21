@@ -41,6 +41,9 @@ import {
   defaultStudents,
   defaultTeachers,
 } from '@/lib/presets'
+import { FacultyRegistry } from './FacultyRegistry'
+import { TeachingAssistantRegistry } from './TeachingAssistantRegistry'
+import { RoomUnavailabilityPicker } from './RoomUnavailabilityPicker'
 
 interface InputManagerModalProps {
   isOpen: boolean
@@ -53,6 +56,8 @@ interface InputManagerModalProps {
   setRooms: React.Dispatch<React.SetStateAction<Room[]>>
   teachers: Teacher[]
   setTeachers: React.Dispatch<React.SetStateAction<Teacher[]>>
+  teachingAssistants?: Teacher[]
+  setTeachingAssistants?: React.Dispatch<React.SetStateAction<Teacher[]>>
   config: ExamSessionConfig
   setConfig: React.Dispatch<React.SetStateAction<ExamSessionConfig>>
   onSaveAndRerun: () => void
@@ -69,12 +74,14 @@ export function InputManagerModal({
   setRooms,
   teachers,
   setTeachers,
+  teachingAssistants = [],
+  setTeachingAssistants = () => {},
   config,
   setConfig,
   onSaveAndRerun,
 }: InputManagerModalProps) {
   const [activeTab, setActiveTab] = useState<
-    'params' | 'students' | 'courses' | 'rooms' | 'teachers'
+    'params' | 'students' | 'courses' | 'rooms' | 'teachers' | 'tas'
   >('params')
 
   // Form states for adding items
@@ -105,6 +112,8 @@ export function InputManagerModal({
     totalBenches: 10,
     benchCapacity: 2,
     columns: 2,
+    teachersRequired: 1,
+    teachingAssistantsRequired: 0,
     allowSameCourseOnBench: false,
   })
 
@@ -154,6 +163,8 @@ export function InputManagerModal({
   // Add Room Handler
   const handleAddRoom = () => {
     if (!newRoom.name || !newRoom.code) return
+    const teachersReq = Number(newRoom.teachersRequired) || 1
+    const tasReq = Number(newRoom.teachingAssistantsRequired) || 0
     const added: Room = {
       id: `r_${Date.now()}`,
       name: newRoom.name,
@@ -163,10 +174,13 @@ export function InputManagerModal({
       totalBenches: Number(newRoom.totalBenches) || 10,
       benchCapacity: Number(newRoom.benchCapacity) || 2,
       columns: Number(newRoom.columns) || 2,
+      teachersRequired: teachersReq,
+      teachingAssistantsRequired: tasReq,
+      invigilatorsRequired: teachersReq + tasReq,
       allowSameCourseOnBench: newRoom.allowSameCourseOnBench || false,
     }
     setRooms((prev) => [...prev, added])
-    setNewRoom({ name: '', code: '', building: 'Academic Block', type: 'classroom', totalBenches: 10, benchCapacity: 2 })
+    setNewRoom({ name: '', code: '', building: 'Academic Block', type: 'classroom', totalBenches: 10, benchCapacity: 2, teachersRequired: 1, teachingAssistantsRequired: 0 })
   }
 
   // Add Teacher Handler
@@ -246,6 +260,7 @@ export function InputManagerModal({
             { id: 'courses', label: `3. Course Catalog (${courses.length})`, icon: BookOpen },
             { id: 'rooms', label: `4. Rooms & Labs (${rooms.length})`, icon: Building2 },
             { id: 'teachers', label: `5. Faculty & Priorities (${teachers.length})`, icon: UserCheck },
+            { id: 'tas', label: `6. Teaching Assistants (${teachingAssistants.length})`, icon: Users },
           ].map((tab) => {
             const Icon = tab.icon
             return (
@@ -756,7 +771,7 @@ export function InputManagerModal({
             <div className="flex flex-col gap-6">
               <div className="rounded-2xl border border-border bg-muted/20 p-5">
                 <h3 className="text-sm font-bold text-foreground mb-3">Add Room / Laboratory</h3>
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-4">
                   <input
                     type="text"
                     placeholder="Room Name (e.g. Lecture Hall 103)"
@@ -781,6 +796,13 @@ export function InputManagerModal({
                     <option value="lab">🔬 Computer / Science Lab</option>
                   </select>
                   <input
+                    type="text"
+                    placeholder="Building / Location"
+                    value={newRoom.building}
+                    onChange={(e) => setNewRoom({ ...newRoom, building: e.target.value })}
+                    className="rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground focus:outline-hidden"
+                  />
+                  <input
                     type="number"
                     placeholder="Total Benches / Desks (e.g. 15)"
                     value={newRoom.totalBenches}
@@ -798,13 +820,34 @@ export function InputManagerModal({
                     }
                     className="rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground focus:outline-hidden"
                   />
-                  <input
-                    type="text"
-                    placeholder="Building / Location"
-                    value={newRoom.building}
-                    onChange={(e) => setNewRoom({ ...newRoom, building: e.target.value })}
-                    className="rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground focus:outline-hidden"
-                  />
+                  <div>
+                    <input
+                      type="number"
+                      min={0}
+                      max={6}
+                      placeholder="Teachers Req (e.g. 1)"
+                      value={newRoom.teachersRequired ?? 1}
+                      onChange={(e) =>
+                        setNewRoom({ ...newRoom, teachersRequired: Number(e.target.value) })
+                      }
+                      className="w-full rounded-lg border border-emerald-300 bg-background px-3 py-2 text-xs font-bold text-emerald-700 focus:outline-hidden"
+                      title="Number of faculty teachers required"
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="number"
+                      min={0}
+                      max={6}
+                      placeholder="TAs Req (e.g. 1)"
+                      value={newRoom.teachingAssistantsRequired ?? 0}
+                      onChange={(e) =>
+                        setNewRoom({ ...newRoom, teachingAssistantsRequired: Number(e.target.value) })
+                      }
+                      className="w-full rounded-lg border border-cyan-300 bg-background px-3 py-2 text-xs font-bold text-cyan-700 focus:outline-hidden"
+                      title="Number of teaching assistants required"
+                    />
+                  </div>
                 </div>
                 <button
                   onClick={handleAddRoom}
@@ -823,6 +866,8 @@ export function InputManagerModal({
                       <th className="p-3">Type</th>
                       <th className="p-3">Benches</th>
                       <th className="p-3">Bench Capacity</th>
+                      <th className="p-3">Teachers Req.</th>
+                      <th className="p-3">TAs Req.</th>
                       <th className="p-3">Total Seats</th>
                       <th className="p-3 text-right">Action</th>
                     </tr>
@@ -841,6 +886,54 @@ export function InputManagerModal({
                         </td>
                         <td className="p-3 font-semibold text-foreground">{r.totalBenches} benches</td>
                         <td className="p-3 text-muted-foreground">{r.benchCapacity} students / bench</td>
+                        <td className="p-3">
+                          <input
+                            type="number"
+                            min={0}
+                            max={6}
+                            value={r.teachersRequired ?? r.invigilatorsRequired ?? 1}
+                            onChange={(e) => {
+                              const val = Math.max(0, Number(e.target.value))
+                              setRooms((prev) =>
+                                prev.map((item) =>
+                                  item.id === r.id
+                                    ? {
+                                        ...item,
+                                        teachersRequired: val,
+                                        invigilatorsRequired: val + (item.teachingAssistantsRequired ?? 0),
+                                      }
+                                    : item
+                                )
+                              )
+                            }}
+                            className="w-12 rounded border border-emerald-300 bg-background px-1.5 py-0.5 text-xs font-bold text-emerald-700 focus:outline-hidden"
+                            title="Faculty teachers required"
+                          />
+                        </td>
+                        <td className="p-3">
+                          <input
+                            type="number"
+                            min={0}
+                            max={6}
+                            value={r.teachingAssistantsRequired ?? 0}
+                            onChange={(e) => {
+                              const val = Math.max(0, Number(e.target.value))
+                              setRooms((prev) =>
+                                prev.map((item) =>
+                                  item.id === r.id
+                                    ? {
+                                        ...item,
+                                        teachingAssistantsRequired: val,
+                                        invigilatorsRequired: (item.teachersRequired ?? 1) + val,
+                                      }
+                                    : item
+                                )
+                              )
+                            }}
+                            className="w-12 rounded border border-cyan-300 bg-background px-1.5 py-0.5 text-xs font-bold text-cyan-700 focus:outline-hidden"
+                            title="Teaching assistants required"
+                          />
+                        </td>
                         <td className="p-3 font-bold text-primary">
                           {r.totalBenches * r.benchCapacity} seats
                         </td>
@@ -864,119 +957,20 @@ export function InputManagerModal({
 
           {/* TAB 5: Faculty & Priorities */}
           {activeTab === 'teachers' && (
-            <div className="flex flex-col gap-6">
-              <div className="rounded-2xl border border-border bg-muted/20 p-5">
-                <h3 className="text-sm font-bold text-foreground mb-3">Add Faculty Member</h3>
-                <div className="grid gap-3 sm:grid-cols-4">
-                  <input
-                    type="text"
-                    placeholder="Teacher Name (e.g. Dr. Alok Gupta)"
-                    value={newTeacher.name}
-                    onChange={(e) => setNewTeacher({ ...newTeacher, name: e.target.value })}
-                    className="rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground focus:outline-hidden"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Department (e.g. CSE / ECE)"
-                    value={newTeacher.department}
-                    onChange={(e) =>
-                      setNewTeacher({ ...newTeacher, department: e.target.value })
-                    }
-                    className="rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground focus:outline-hidden"
-                  />
-                  <select
-                    value={newTeacher.priority}
-                    onChange={(e) =>
-                      setNewTeacher({ ...newTeacher, priority: e.target.value as any })
-                    }
-                    className="rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground focus:outline-hidden"
-                  >
-                    <option value="high">⭐ High Priority (Senior Faculty)</option>
-                    <option value="medium">Medium Priority</option>
-                    <option value="low">Low Priority</option>
-                  </select>
-                  <input
-                    type="number"
-                    placeholder="Max Duties Limit (e.g. 6)"
-                    value={newTeacher.maxDuties}
-                    onChange={(e) =>
-                      setNewTeacher({ ...newTeacher, maxDuties: Number(e.target.value) })
-                    }
-                    className="rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground focus:outline-hidden"
-                  />
-                </div>
-                <button
-                  onClick={handleAddTeacher}
-                  className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground shadow-2xs hover:opacity-90"
-                >
-                  <Plus className="size-3.5" />
-                  Add Teacher
-                </button>
-              </div>
+            <FacultyRegistry
+              teachers={teachers}
+              setTeachers={setTeachers}
+              hideSectionHeader
+            />
+          )}
 
-              <div className="overflow-hidden rounded-xl border border-border">
-                <table className="w-full text-left text-xs">
-                  <thead className="border-b border-border bg-muted/40 font-semibold text-muted-foreground">
-                    <tr>
-                      <th className="p-3">Faculty Name</th>
-                      <th className="p-3">Department</th>
-                      <th className="p-3">Priority Level</th>
-                      <th className="p-3">Max Allowed Duties</th>
-                      <th className="p-3 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {[...teachers]
-                      .sort((a, b) => {
-                        const getPriorityScore = (p: any): number => {
-                          if (typeof p === 'number') return p
-                          if (p === 'high') return 1
-                          if (p === 'medium') return 2
-                          if (p === 'low') return 3
-                          const parsed = parseInt(p, 10)
-                          return isNaN(parsed) ? 999 : parsed
-                        }
-                        const scoreA = getPriorityScore(a.priority)
-                        const scoreB = getPriorityScore(b.priority)
-                        if (scoreA !== scoreB) {
-                          return scoreA - scoreB
-                        }
-                        return a.name.localeCompare(b.name)
-                      })
-                      .map((t) => (
-                      <tr key={t.id} className="hover:bg-muted/15">
-                        <td className="p-3 font-bold text-foreground">{t.name}</td>
-                        <td className="p-3 text-muted-foreground">{t.department}</td>
-                        <td className="p-3">
-                          <span
-                            className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase ${
-                              t.priority === 'high'
-                                ? 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300'
-                                : t.priority === 'medium'
-                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
-                                : 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300'
-                            }`}
-                          >
-                            {t.priority}
-                          </span>
-                        </td>
-                        <td className="p-3 font-semibold text-foreground">{t.maxDuties} slots</td>
-                        <td className="p-3 text-right">
-                          <button
-                            onClick={() =>
-                              setTeachers((prev) => prev.filter((item) => item.id !== t.id))
-                            }
-                            className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                          >
-                            <Trash2 className="size-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+          {/* TAB 6: Teaching Assistants */}
+          {activeTab === 'tas' && (
+            <TeachingAssistantRegistry
+              teachingAssistants={teachingAssistants}
+              setTeachingAssistants={setTeachingAssistants}
+              hideSectionHeader
+            />
           )}
         </div>
       </div>

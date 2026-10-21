@@ -1,10 +1,12 @@
 import {
   AcademicYear,
+  ClassSuspensionConfig,
   Course,
   ExamSessionConfig,
   Room,
   Student,
   Teacher,
+  TeacherScheduleEntry,
 } from './types'
 
 import { generateAllStudents } from './students-data'
@@ -113,7 +115,9 @@ export const defaultMstRooms: Room[] = [
     benchCapacity: 2,
     rows: 5,
     columns: 12,
-    invigilatorsRequired: 2,
+    teachersRequired: 2,
+    teachingAssistantsRequired: 1,
+    invigilatorsRequired: 3,
     allowSameCourseOnBench: false,
     included: true,
   },
@@ -127,7 +131,9 @@ export const defaultMstRooms: Room[] = [
     benchCapacity: 2,
     rows: 5,
     columns: 12,
-    invigilatorsRequired: 2,
+    teachersRequired: 2,
+    teachingAssistantsRequired: 1,
+    invigilatorsRequired: 3,
     allowSameCourseOnBench: false,
     included: true,
   },
@@ -141,6 +147,8 @@ export const defaultMstRooms: Room[] = [
     benchCapacity: 3,
     rows: 3,
     columns: 10,
+    teachersRequired: 1,
+    teachingAssistantsRequired: 1,
     invigilatorsRequired: 2,
     allowSameCourseOnBench: false,
     included: true,
@@ -155,6 +163,8 @@ export const defaultMstRooms: Room[] = [
     benchCapacity: 3,
     rows: 4,
     columns: 5,
+    teachersRequired: 1,
+    teachingAssistantsRequired: 0,
     invigilatorsRequired: 1,
     allowSameCourseOnBench: false,
     included: true,
@@ -175,7 +185,9 @@ export const defaultQuizRooms: Room[] = [
     benchCapacity: 1,
     rows: 6,
     columns: 10,
-    invigilatorsRequired: 1,
+    teachersRequired: 1,
+    teachingAssistantsRequired: 1,
+    invigilatorsRequired: 2,
     allowSameCourseOnBench: true,
     included: true,
   },
@@ -189,7 +201,9 @@ export const defaultQuizRooms: Room[] = [
     benchCapacity: 1,
     rows: 5,
     columns: 6,
-    invigilatorsRequired: 1,
+    teachersRequired: 1,
+    teachingAssistantsRequired: 1,
+    invigilatorsRequired: 2,
     allowSameCourseOnBench: true,
     included: true,
   },
@@ -203,7 +217,9 @@ export const defaultQuizRooms: Room[] = [
     benchCapacity: 1,
     rows: 5,
     columns: 6,
-    invigilatorsRequired: 1,
+    teachersRequired: 1,
+    teachingAssistantsRequired: 1,
+    invigilatorsRequired: 2,
     allowSameCourseOnBench: true,
     included: true,
   },
@@ -217,7 +233,9 @@ export const defaultQuizRooms: Room[] = [
     benchCapacity: 1,
     rows: 5,
     columns: 6,
-    invigilatorsRequired: 1,
+    teachersRequired: 1,
+    teachingAssistantsRequired: 1,
+    invigilatorsRequired: 2,
     allowSameCourseOnBench: true,
     included: true,
   },
@@ -231,7 +249,9 @@ export const defaultQuizRooms: Room[] = [
     benchCapacity: 1,
     rows: 5,
     columns: 6,
-    invigilatorsRequired: 1,
+    teachersRequired: 1,
+    teachingAssistantsRequired: 1,
+    invigilatorsRequired: 2,
     allowSameCourseOnBench: true,
     included: true,
   },
@@ -245,7 +265,9 @@ export const defaultQuizRooms: Room[] = [
     benchCapacity: 1,
     rows: 5,
     columns: 6,
-    invigilatorsRequired: 1,
+    teachersRequired: 1,
+    teachingAssistantsRequired: 1,
+    invigilatorsRequired: 2,
     allowSameCourseOnBench: true,
     included: true,
   },
@@ -288,11 +310,118 @@ export const defaultTeachers: Teacher[] = [
   { id: 't25', name: 'Ms. Teena Dubey', designation: 'Assistant Professor', department: 'CSE', priority: 3, maxDuties: 6, included: true },
 ]
 
-// Duplicate student and teacher sets for MST and Quiz modes
+// Teaching Assistants (TA Roster)
+export const defaultTeachingAssistants: Teacher[] = [
+  { id: 'ta1', name: 'Aarav Sharma', designation: 'Senior Teaching Assistant', department: 'CSE', priority: 1, maxDuties: 6, included: true },
+  { id: 'ta2', name: 'Pooja Verma', designation: 'Senior Teaching Assistant', department: 'CSE', priority: 1, maxDuties: 6, included: true },
+  { id: 'ta3', name: 'Rohan Gupta', designation: 'Teaching Assistant', department: 'CSE', priority: 2, maxDuties: 6, included: true },
+  { id: 'ta4', name: 'Neha Patel', designation: 'Research Scholar (TA)', department: 'CSE', priority: 2, maxDuties: 6, included: true },
+  { id: 'ta5', name: 'Vikram Rathore', designation: 'Teaching Assistant', department: 'CSE', priority: 2, maxDuties: 6, included: true },
+  { id: 'ta6', name: 'Simran Kaur', designation: 'Teaching Assistant', department: 'IT', priority: 2, maxDuties: 6, included: true },
+  { id: 'ta7', name: 'Aditya Joshi', designation: 'Teaching Assistant', department: 'IT', priority: 2, maxDuties: 6, included: true },
+  { id: 'ta8', name: 'Ananya Sen', designation: 'Research Scholar (TA)', department: 'ECE', priority: 3, maxDuties: 6, included: true },
+  { id: 'ta9', name: 'Karan Malhotra', designation: 'Teaching Assistant', department: 'ECE', priority: 3, maxDuties: 6, included: true },
+  { id: 'ta10', name: 'Divya Nair', designation: 'Teaching Assistant', department: 'EE', priority: 3, maxDuties: 6, included: true },
+  { id: 'ta11', name: 'Manish Soni', designation: 'Lab Teaching Assistant', department: 'ME', priority: 3, maxDuties: 6, included: true },
+  { id: 'ta12', name: 'Ritu Gangrade', designation: 'Teaching Assistant', department: 'CE', priority: 3, maxDuties: 6, included: true },
+]
+
+// Duplicate student, teacher, and TA sets for MST and Quiz modes
 export const defaultMstStudents: Student[] = defaultStudents.map((s) => ({ ...s }))
 export const defaultQuizStudents: Student[] = defaultStudents.map((s) => ({ ...s }))
 export const defaultMstTeachers: Teacher[] = defaultTeachers.map((t) => ({ ...t }))
 export const defaultQuizTeachers: Teacher[] = defaultTeachers.map((t) => ({ ...t }))
+export const defaultMstTeachingAssistants: Teacher[] = defaultTeachingAssistants.map((t) => ({ ...t }))
+export const defaultQuizTeachingAssistants: Teacher[] = defaultTeachingAssistants.map((t) => ({ ...t }))
+
+export const defaultClassSuspensionConfig: ClassSuspensionConfig = {
+  suspendedCohorts: [
+    'B.Tech - 2nd Year',
+    'B.Tech - 3rd Year',
+    'B.Tech - 4th Year',
+    'M.Tech - 1st Year',
+  ],
+  suspendedCourses: [],
+}
+
+export const defaultTeacherTimetableEntries: TeacherScheduleEntry[] = [
+  {
+    id: 'tt_1',
+    teacherName: 'Dr. Urjita Thakar',
+    dayOfWeek: 'Monday',
+    startTime: '09:30',
+    endTime: '10:30',
+    program: 'B.Tech',
+    year: '3rd Year',
+    courseCode: 'CS-501',
+    courseName: 'Theory of Computation',
+    room: 'LT-101',
+  },
+  {
+    id: 'tt_2',
+    teacherName: 'Dr. Urjita Thakar',
+    dayOfWeek: 'Tuesday',
+    startTime: '11:30',
+    endTime: '12:30',
+    program: 'B.Tech',
+    year: '1st Year',
+    courseCode: 'CS-101',
+    courseName: 'Programming Fundamentals',
+    room: 'LT-102',
+  },
+  {
+    id: 'tt_3',
+    teacherName: 'Dr. D. A. Mehta',
+    dayOfWeek: 'Monday',
+    startTime: '11:30',
+    endTime: '12:30',
+    program: 'B.Tech',
+    year: '4th Year',
+    courseCode: 'CS-701-E2',
+    courseName: 'Computational Intelligence',
+    room: 'LT-201',
+  },
+  {
+    id: 'tt_4',
+    teacherName: 'Mr. Surendra Gupta',
+    dayOfWeek: 'Wednesday',
+    startTime: '09:30',
+    endTime: '10:30',
+    program: 'B.Tech',
+    year: '2nd Year',
+    courseCode: 'CS-301',
+    courseName: 'OOPS',
+    room: 'LT-103',
+  },
+  {
+    id: 'tt_5',
+    teacherName: 'Aarav Sharma',
+    role: 'ta',
+    dayOfWeek: 'Monday',
+    startTime: '09:30',
+    endTime: '11:30',
+    program: 'B.Tech',
+    year: '3rd Year',
+    courseCode: 'CS-504-LAB',
+    courseName: 'OS Lab',
+    room: 'GCL',
+  },
+  {
+    id: 'tt_6',
+    teacherName: 'Pooja Verma',
+    role: 'ta',
+    dayOfWeek: 'Thursday',
+    startTime: '14:00',
+    endTime: '16:00',
+    program: 'B.Tech',
+    year: '1st Year',
+    courseCode: 'CS-102-LAB',
+    courseName: 'Programming Lab',
+    room: 'SWL',
+  },
+]
+
+export const defaultCourseStudentOverrides: Record<string, string[]> = {}
 
 // Clean initial configurations with NO pre-filled dates/slots so the user picks their own rules from scratch
 export const defaultExamConfigs: Record<'mst' | 'quiz', ExamSessionConfig> = {
@@ -310,6 +439,9 @@ export const defaultExamConfigs: Record<'mst' | 'quiz', ExamSessionConfig> = {
     daySpecificSlots: {},
     seatingMode: 'interleave_two_exams',
     allowTwoExamsInOneRoom: true,
+    teacherTimetableEntries: defaultTeacherTimetableEntries,
+    classSuspensionConfig: defaultClassSuspensionConfig,
+    courseStudentOverrides: defaultCourseStudentOverrides,
   },
   quiz: {
     id: 'cfg_quiz_custom',
@@ -331,5 +463,8 @@ export const defaultExamConfigs: Record<'mst' | 'quiz', ExamSessionConfig> = {
       '3rd Year': { enabled: false, date: '', startTime: '' },
       '4th Year': { enabled: false, date: '', startTime: '' },
     },
+    teacherTimetableEntries: defaultTeacherTimetableEntries,
+    classSuspensionConfig: defaultClassSuspensionConfig,
+    courseStudentOverrides: defaultCourseStudentOverrides,
   },
 }

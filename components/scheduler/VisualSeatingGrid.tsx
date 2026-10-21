@@ -260,43 +260,63 @@ export function VisualSeatingGrid({
               </p>
             </div>
 
-            {/* Room Invigilator Badge */}
-            {currentRoom.invigilator && (
-              <div className="flex items-center gap-3 rounded-xl border border-border bg-background/80 p-3 shadow-xs">
-                <div
-                  className={`flex size-10 items-center justify-center rounded-lg ${
-                    currentRoom.invigilator.priority === 'high'
-                      ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300'
-                      : currentRoom.invigilator.priority === 'medium'
-                      ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300'
-                      : 'bg-slate-500/15 text-slate-700 dark:text-slate-300'
-                  }`}
-                >
-                  <UserCheck className="size-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-semibold text-foreground">
-                      {currentRoom.invigilator.name}
-                    </span>
-                    <span
-                      className={`rounded px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider ${
-                        currentRoom.invigilator.priority === 'high'
-                          ? 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300'
-                          : currentRoom.invigilator.priority === 'medium'
-                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
-                          : 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300'
-                      }`}
-                    >
-                      {currentRoom.invigilator.priority} Priority
-                    </span>
+            {/* Room Invigilators & Teaching Assistants Badges */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              {(currentRoom.invigilators && currentRoom.invigilators.length > 0
+                ? currentRoom.invigilators
+                : currentRoom.invigilator
+                ? [currentRoom.invigilator]
+                : []
+              ).map((invig, idx) => (
+                <div key={invig.id || idx} className="flex items-center gap-3 rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-2.5 shadow-2xs">
+                  <div
+                    className={`flex size-9 items-center justify-center rounded-lg ${
+                      invig.priority === 'high' || invig.priority === 1
+                        ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300'
+                        : invig.priority === 'medium' || invig.priority === 2
+                        ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300'
+                        : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                    }`}
+                  >
+                    <UserCheck className="size-4" />
                   </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Hall Invigilator · Dept. of {currentRoom.invigilator.department}
-                  </p>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-foreground">
+                        {invig.name}
+                      </span>
+                      <span className="rounded bg-emerald-100 text-emerald-800 px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider dark:bg-emerald-950 dark:text-emerald-300">
+                        Faculty
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      Dept. of {invig.department}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            )}
+              ))}
+
+              {(currentRoom.teachingAssistants || []).map((ta, idx) => (
+                <div key={ta.id || idx} className="flex items-center gap-3 rounded-xl border border-cyan-200/80 bg-cyan-50/40 p-2.5 shadow-2xs">
+                  <div className="flex size-9 items-center justify-center rounded-lg bg-cyan-500/15 text-cyan-700 dark:text-cyan-300">
+                    <GraduationCap className="size-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-foreground">
+                        {ta.name}
+                      </span>
+                      <span className="rounded bg-cyan-100 text-cyan-800 px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider dark:bg-cyan-950 dark:text-cyan-300">
+                        TA
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      Teaching Assistant · Dept. of {ta.department}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Conducted Courses Banner with Roll Number Ranges */}

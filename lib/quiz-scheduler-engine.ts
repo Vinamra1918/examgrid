@@ -10,6 +10,7 @@ import {
   Student,
   Teacher,
 } from './types'
+import { isRoomUnavailable, isTeacherAvailableDuringSlot } from './scheduler-engine'
 
 function normalizeSectionLabel(value?: string): string | undefined {
   if (!value) return undefined
@@ -70,7 +71,8 @@ export function generateLabQuizSchedule(
   students: Student[],
   courses: Course[],
   rooms: Room[],
-  teachers: Teacher[]
+  teachers: Teacher[],
+  teachingAssistants: Teacher[] = []
 ): ScheduleResult {
   const constraintViolations: string[] = []
 
@@ -78,6 +80,7 @@ export function generateLabQuizSchedule(
   const activeStudentsPool = students.filter((s) => s.included !== false)
   const activeRoomsPool = rooms.filter((r) => r.included !== false)
   const activeTeachersPool = teachers.filter((t) => t.included !== false)
+  const activeTAsPool = (teachingAssistants || []).filter((ta) => ta.included !== false)
 
   const isLabCourse = (c: Course): boolean => {
     if (c.type === 'lab_quiz') return true
@@ -156,26 +159,45 @@ export function generateLabQuizSchedule(
     return sem || year || 'General'
   }
 
-  // Compute student enrollments for each lab quiz
+  // Compute student enrollments for each lab quiz (honoring courseStudentOverrides if specified)
   const courseEnrollments = new Map<string, Student[]>()
   targetCourses.forEach((c) => {
-    const courseSemKey = getSemKey(c.semester, c.year)
-    const enrolled = activeStudentsPool.filter((s) => {
-      const studentSemKey = getSemKey(s.semester, s.year)
-      if (studentSemKey === courseSemKey) return true
-      if (s.enrolledCourseCodes && s.enrolledCourseCodes.includes(c.code)) return true
-      return s.year === c.year && (!c.semester || !s.semester)
-    })
-    enrolled.sort((a, b) => a.rollNo.localeCompare(b.rollNo, undefined, { numeric: true }))
-    courseEnrollments.set(c.code, enrolled)
+    const overrideRolls = config.courseStudentOverrides?.[c.code]
+    if (overrideRolls && overrideRolls.length > 0) {
+      const overrideSet = new Set(overrideRolls.map((r) => r.trim().toLowerCase()))
+      const enrolled = activeStudentsPool.filter(
+        (s) =>
+          overrideSet.has(s.rollNo.trim().toLowerCase()) ||
+          overrideSet.has(s.id.trim().toLowerCase())
+      )
+      enrolled.sort((a, b) => a.rollNo.localeCompare(b.rollNo, undefined, { numeric: true }))
+      courseEnrollments.set(c.code, enrolled)
+    } else {
+      const courseSemKey = getSemKey(c.semester, c.year)
+      const enrolled = activeStudentsPool.filter((s) => {
+        const studentSemKey = getSemKey(s.semester, s.year)
+        if (studentSemKey === courseSemKey) return true
+        if (s.enrolledCourseCodes && s.enrolledCourseCodes.includes(c.code)) return true
+        return s.year === c.year && (!c.semester || !s.semester)
+      })
+      enrolled.sort((a, b) => a.rollNo.localeCompare(b.rollNo, undefined, { numeric: true }))
+      courseEnrollments.set(c.code, enrolled)
+    }
   })
 
-  // Track teacher duties
+  // Track teacher and TA duties
   const teacherDutyCounts = new Map<string, number>()
   const teacherDutyLogs = new Map<string, { day: number; slot: string; room: string }[]>()
   activeTeachersPool.forEach((t) => {
     teacherDutyCounts.set(t.id, 0)
     teacherDutyLogs.set(t.id, [])
+  })
+
+  const taDutyCounts = new Map<string, number>()
+  const taDutyLogs = new Map<string, { day: number; slot: string; room: string }[]>()
+  activeTAsPool.forEach((ta) => {
+    taDutyCounts.set(ta.id, 0)
+    taDutyLogs.set(ta.id, [])
   })
 
   // Default quiz duration (15 minutes if not specified or default is >=60)
@@ -336,7 +358,7 @@ export function generateLabQuizSchedule(
         while (studentQueuesByCourse.some((q) => q.students.length > 0) && roomIdx < usableRooms.length) {
           const room = usableRooms[roomIdx++]
           
-          if (room.unavailableDates && room.unavailableDates.includes(plan.dateIso)) {
+          if (isRoomUnavailable(room, plan.dateIso, slotStartTime, slotEndTime)) {
             continue
           }
           
@@ -408,34 +430,100 @@ export function generateLabQuizSchedule(
               }
             })
 
-            // Invigilator assignment
-            let invigilator: Teacher | undefined
-            if (activeTeachersPool.length > 0) {
-              const sortedTeachers = [...activeTeachersPool].sort(
-                (a, b) => (teacherDutyCounts.get(a.id) || 0) - (teacherDutyCounts.get(b.id) || 0)
-              )
-              invigilator = sortedTeachers[0]
-              if (invigilator) {
-                teacherDutyCounts.set(invigilator.id, (teacherDutyCounts.get(invigilator.id) || 0) + 1)
-                const logs = teacherDutyLogs.get(invigilator.id) || []
+            // Teacher (Faculty) assignment based on room.teachersRequired and timetable suspension availability
+            const examDateObj = parseLocalDate(plan.dateIso)
+            const examDayOfWeek = examDateObj.toLocaleDateString('en-US', { weekday: 'long' })
+            const reqTeachers = room.teachersRequired ?? room.invigilatorsRequired ?? 1
+            const assignedTeachersList: Teacher[] = []
+            if (activeTeachersPool.length > 0 && reqTeachers > 0) {
+              for (let tIdx = 0; tIdx < reqTeachers; tIdx++) {
+                const availableTeachers = activeTeachersPool.filter(
+                  (t) =>
+                    (teacherDutyCounts.get(t.id) || 0) < t.maxDuties &&
+                    !assignedTeachersList.some((at) => at.id === t.id) &&
+                    isTeacherAvailableDuringSlot(
+                      t,
+                      plan.dateIso,
+                      examDayOfWeek,
+                      slotStartTime,
+                      slotEndTime,
+                      config.teacherTimetableEntries,
+                      config.classSuspensionConfig
+                    )
+                )
+                if (availableTeachers.length === 0) break
+                availableTeachers.sort(
+                  (a, b) => (teacherDutyCounts.get(a.id) || 0) - (teacherDutyCounts.get(b.id) || 0)
+                )
+                const pickedTeacher = availableTeachers[0]
+                assignedTeachersList.push(pickedTeacher)
+                teacherDutyCounts.set(pickedTeacher.id, (teacherDutyCounts.get(pickedTeacher.id) || 0) + 1)
+                const logs = teacherDutyLogs.get(pickedTeacher.id) || []
                 logs.push({ day: dayNumber, slot: `${slotLabel} (${timeRange})`, room: room.name })
-                teacherDutyLogs.set(invigilator.id, logs)
+                teacherDutyLogs.set(pickedTeacher.id, logs)
               }
             }
 
+            // Teaching Assistant assignment based on room.teachingAssistantsRequired and timetable availability
+            const reqTAs = room.teachingAssistantsRequired ?? 1
+            const assignedTAListForRoom: Teacher[] = []
+            if (activeTAsPool.length > 0 && reqTAs > 0) {
+              for (let taIdx = 0; taIdx < reqTAs; taIdx++) {
+                const availableTAs = activeTAsPool.filter(
+                  (ta) =>
+                    (taDutyCounts.get(ta.id) || 0) < ta.maxDuties &&
+                    !assignedTAListForRoom.some((aTa) => aTa.id === ta.id) &&
+                    isTeacherAvailableDuringSlot(
+                      ta,
+                      plan.dateIso,
+                      examDayOfWeek,
+                      slotStartTime,
+                      slotEndTime,
+                      config.teacherTimetableEntries,
+                      config.classSuspensionConfig
+                    )
+                )
+                if (availableTAs.length === 0) break
+                availableTAs.sort(
+                  (a, b) => (taDutyCounts.get(a.id) || 0) - (taDutyCounts.get(b.id) || 0)
+                )
+                const pickedTA = availableTAs[0]
+                assignedTAListForRoom.push(pickedTA)
+                taDutyCounts.set(pickedTA.id, (taDutyCounts.get(pickedTA.id) || 0) + 1)
+                const logs = taDutyLogs.get(pickedTA.id) || []
+                logs.push({ day: dayNumber, slot: `${slotLabel} (${timeRange})`, room: room.name })
+                taDutyLogs.set(pickedTA.id, logs)
+              }
+            }
+
+            const primaryInvigilator = assignedTeachersList[0]
             roomAllocations.push({
               roomId: room.id,
               roomName: room.name,
               roomType: 'lab',
               totalCapacity: totalTerminals,
               totalSeated: seatedCountInThisRoom,
-              invigilator: invigilator
+              invigilator: primaryInvigilator
                 ? {
-                    id: invigilator.id,
-                    name: invigilator.name,
-                    department: invigilator.department,
-                    priority: invigilator.priority,
+                    id: primaryInvigilator.id,
+                    name: primaryInvigilator.name,
+                    department: primaryInvigilator.department,
+                    priority: primaryInvigilator.priority,
                   }
+                : undefined,
+              invigilators: assignedTeachersList.map((t) => ({
+                id: t.id,
+                name: t.name,
+                department: t.department,
+                priority: t.priority,
+              })),
+              teachingAssistants: assignedTAListForRoom.length > 0
+                ? assignedTAListForRoom.map((ta) => ({
+                    id: ta.id,
+                    name: ta.name,
+                    department: ta.department,
+                    priority: ta.priority,
+                  }))
                 : undefined,
               coursesConducted: coursesConductedList,
               benches,
@@ -443,16 +531,35 @@ export function generateLabQuizSchedule(
           }
         }
 
-        const assignedFacultyList = roomAllocations
-          .filter((r) => r.invigilator)
-          .map((r) => ({
-            teacherId: r.invigilator!.id,
-            teacherName: r.invigilator!.name,
-            department: r.invigilator!.department,
-            priority: r.invigilator!.priority,
-            roomId: r.roomId,
-            roomName: r.roomName,
-          }))
+        const assignedFacultyList: ScheduledSlot['assignedFaculty'] = []
+        roomAllocations.forEach((r) => {
+          const list = r.invigilators && r.invigilators.length > 0
+            ? r.invigilators
+            : r.invigilator ? [r.invigilator] : []
+          list.forEach((f) => {
+            assignedFacultyList.push({
+              teacherId: f.id,
+              teacherName: f.name,
+              department: f.department,
+              priority: f.priority,
+              roomId: r.roomId,
+              roomName: r.roomName,
+            })
+          })
+        })
+
+        const assignedTAList: ScheduledSlot['assignedTAs'] = []
+        roomAllocations.forEach((r) => {
+          (r.teachingAssistants || []).forEach((ta) => {
+            assignedTAList.push({
+              taId: ta.id,
+              taName: ta.name,
+              priority: ta.priority,
+              roomId: r.roomId,
+              roomName: r.roomName,
+            })
+          })
+        })
 
         scheduledSlots.push({
           slotId: `quiz_slot_d${dayNumber}_${plan.year.replace(/\s+/g, '_')}_slot${slotIdx + 1}`,
@@ -482,6 +589,7 @@ export function generateLabQuizSchedule(
           }),
           roomAllocations,
           assignedFaculty: assignedFacultyList,
+          assignedTAs: assignedTAList,
         })
       })
 
@@ -508,6 +616,16 @@ export function generateLabQuizSchedule(
     assignedSlotSummaries: teacherDutyLogs.get(t.id) || [],
   }))
 
+  const taDutyDistribution = (teachingAssistants || []).map((ta) => ({
+    taId: ta.id,
+    taName: ta.name,
+    department: ta.department,
+    priority: ta.priority,
+    dutiesCount: taDutyCounts.get(ta.id) || 0,
+    maxDuties: ta.maxDuties,
+    assignedSlotSummaries: taDutyLogs.get(ta.id) || [],
+  }))
+
   return {
     config,
     slots: scheduledSlots,
@@ -515,6 +633,7 @@ export function generateLabQuizSchedule(
     totalStudentsSeated,
     totalRoomsUtilized,
     facultyDutyDistribution,
+    taDutyDistribution,
     priorityDispersionScore: 100,
     constraintViolations,
     unscheduledCourses: [],

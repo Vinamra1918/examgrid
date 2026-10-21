@@ -50,6 +50,13 @@ export interface RoomBenchLayout {
   seatsPerBench: number // 1, 2, or 3
 }
 
+export interface RoomUnavailability {
+  date: string // 'YYYY-MM-DD'
+  startTime?: string // 'HH:mm' e.g. '09:00' (if omitted, full day)
+  endTime?: string // 'HH:mm' e.g. '13:00' (if omitted, full day)
+  reason?: string // e.g. 'Department Practical Lab', 'Seminar', 'Maintenance'
+}
+
 export interface Room {
   id: string
   name: string
@@ -60,10 +67,13 @@ export interface Room {
   benchCapacity: number // 1, 2, or 3
   rows?: number
   columns?: number
-  invigilatorsRequired?: number // Number of teachers needed for this room (e.g. 2 for big halls like LT, 1 for regular rooms/labs)
+  invigilatorsRequired?: number // Total staff or legacy fallback
+  teachersRequired?: number // Number of teachers / faculty required for this room (e.g. 1, 2)
+  teachingAssistantsRequired?: number // Number of teaching assistants (TAs) required for this room (e.g. 0, 1, 2)
   allowSameCourseOnBench: boolean
   included?: boolean // When false, room is omitted from timetable room allocation
-  unavailableDates?: string[] // array of 'YYYY-MM-DD' dates when room is excluded
+  unavailableDates?: string[] // array of 'YYYY-MM-DD' dates or 'YYYY-MM-DD HH:mm-HH:mm' strings when room is excluded
+  unavailabilitySlots?: RoomUnavailability[] // detailed date and hours within dates when room/lab is excluded
 }
 
 export interface Teacher {
@@ -75,6 +85,37 @@ export interface Teacher {
   maxDuties: number
   assignedDutiesCount?: number
   included?: boolean // When false, teacher is omitted from faculty duty roster assignment
+}
+
+export interface TeachingAssistant {
+  id: string
+  name: string
+  department: string
+  designation?: string // e.g. 'Teaching Assistant', 'Research Scholar (TA)', 'Lab Assistant'
+  priority: number | string // e.g. 1 (highest), 2, 3 etc.
+  maxDuties: number
+  assignedDutiesCount?: number
+  included?: boolean // When false, TA is omitted from duty roster assignment
+}
+
+export interface TeacherScheduleEntry {
+  id: string
+  teacherName: string
+  teacherId?: string
+  role?: 'teacher' | 'ta'
+  dayOfWeek: string // e.g., 'Monday', 'Tuesday', ..., or 'YYYY-MM-DD'
+  startTime: string // '09:30'
+  endTime: string // '10:30'
+  program: string // e.g. 'B.Tech', 'M.Tech', 'MCA', etc.
+  year: string // e.g. '1st Year', '2nd Year', '3rd Year', '4th Year' or '1', '2', '3', '4'
+  courseCode?: string // e.g. 'CS-301'
+  courseName?: string // e.g. 'Data Structures'
+  room?: string // e.g. 'LT-101'
+}
+
+export interface ClassSuspensionConfig {
+  suspendedCohorts: string[] // e.g. ['B.Tech - 2nd Year', 'B.Tech - 3rd Year', 'B.Tech - 4th Year', 'M.Tech - 1st Year']
+  suspendedCourses?: string[] // optional specific course codes whose regular classes are suspended
 }
 
 export interface ExamSlotConfig {
@@ -107,6 +148,9 @@ export interface ExamSessionConfig {
       startTime?: string // '16:00'
     }
   >
+  teacherTimetableEntries?: TeacherScheduleEntry[] // Routine weekly/teaching timetable for teachers & TAs
+  classSuspensionConfig?: ClassSuspensionConfig // Classes of specific programs & years suspended during exams
+  courseStudentOverrides?: Record<string, string[]> // courseCode -> array of student roll numbers/IDs
 }
 
 export interface BenchSeatAssignment {
@@ -146,6 +190,12 @@ export interface RoomSeatingPlan {
     department: string
     priority: TeacherPriority
   }[]
+  teachingAssistants?: {
+    id: string
+    name: string
+    department: string
+    priority: TeacherPriority
+  }[]
   coursesConducted: {
     code: string
     name: string
@@ -178,6 +228,15 @@ export interface ScheduledSlot {
   assignedFaculty: {
     teacherId: string
     teacherName: string
+    department?: string
+    priority: TeacherPriority
+    roomId: string
+    roomName: string
+  }[]
+  assignedTAs?: {
+    taId: string
+    taName: string
+    department?: string
     priority: TeacherPriority
     roomId: string
     roomName: string
@@ -194,6 +253,15 @@ export interface ScheduleResult {
   facultyDutyDistribution: {
     teacherId: string
     teacherName: string
+    department: string
+    priority: TeacherPriority
+    dutiesCount: number
+    maxDuties: number
+    assignedSlotSummaries: { day: number; slot: string; room: string }[]
+  }[]
+  taDutyDistribution?: {
+    taId: string
+    taName: string
     department: string
     priority: TeacherPriority
     dutiesCount: number

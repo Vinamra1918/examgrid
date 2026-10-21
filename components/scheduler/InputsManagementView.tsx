@@ -8,6 +8,7 @@ import {
   ExamSessionConfig,
   Room,
   RoomType,
+  RoomUnavailability,
   Student,
   Teacher,
   TeacherPriority,
@@ -19,14 +20,21 @@ import {
   defaultMstRooms,
   defaultMstStudents,
   defaultMstTeachers,
+  defaultMstTeachingAssistants,
   defaultQuizCourses,
   defaultQuizRooms,
   defaultQuizStudents,
   defaultQuizTeachers,
+  defaultQuizTeachingAssistants,
   defaultRooms,
   defaultStudents,
   defaultTeachers,
 } from '@/lib/presets'
+import { FacultyRegistry } from './FacultyRegistry'
+import { TeachingAssistantRegistry } from './TeachingAssistantRegistry'
+import { RoomUnavailabilityPicker } from './RoomUnavailabilityPicker'
+import { TeacherTimetableSuspensionSection } from './TeacherTimetableSuspensionSection'
+import { CourseStudentOverridesSection } from './CourseStudentOverridesSection'
 import {
   BookOpen,
   Building2,
@@ -35,6 +43,7 @@ import {
   CheckSquare,
   ChevronDown,
   ChevronUp,
+  Clock3,
   Download,
   Eye,
   EyeOff,
@@ -99,33 +108,177 @@ function mergeImported<T>(current: T[], incoming: T[], mode: ExcelMergeMode, get
   })
 }
 
+function parseUnavailabilityString(raw: string): {
+  slots: RoomUnavailability[]
+  dates: string[]
+} {
+  const slots: RoomUnavailability[] = []
+  const dates: string[] = []
+  if (!raw || typeof raw !== 'string') return { slots, dates }
+
+  const entries = raw.split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean)
+  entries.forEach((entry) => {
+    const dateMatch = entry.match(/^(\d{4}-\d{2}-\d{2})/)
+    if (dateMatch) {
+      const d = dateMatch[1]
+      const timeMatch = entry.match(/(\d{1,2}:\d{2})\s*(?:-|to)\s*(\d{1,2}:\d{2})/)
+      if (timeMatch) {
+        slots.push({
+          date: d,
+          startTime: timeMatch[1],
+          endTime: timeMatch[2],
+        })
+        dates.push(`${d} ${timeMatch[1]}-${timeMatch[2]}`)
+      } else {
+        slots.push({ date: d })
+        dates.push(d)
+      }
+    }
+  })
+  return { slots, dates }
+}
+
+const studentSampleRows = [
+  {
+    'Roll No': '24CS001',
+    'Student Name': 'Aarav Sharma',
+    'Department': 'CSE',
+    'Year': '1st Year',
+    'Semester': 'Semester 1 (Sem A - Odd)',
+    'Section': 'Section A',
+    'Enrolled Courses': 'CS-101, MATH-101, PHYS-101',
+  },
+  {
+    'Roll No': '24CS002',
+    'Student Name': 'Diya Patel',
+    'Department': 'CSE',
+    'Year': '1st Year',
+    'Semester': 'Semester 1 (Sem A - Odd)',
+    'Section': 'Section A',
+    'Enrolled Courses': 'CS-101, MATH-101, PHYS-101',
+  },
+  {
+    'Roll No': '23CS015',
+    'Student Name': 'Rohan Gupta',
+    'Department': 'CSE',
+    'Year': '2nd Year',
+    'Semester': 'Semester 3 (Sem A - Odd)',
+    'Section': 'Section A',
+    'Enrolled Courses': 'CS-301, CS-302, CS-303',
+  },
+]
+
+const courseSampleRows = [
+  {
+    'Course Code': 'CS-301',
+    'Course Name': 'Data Structures & Algorithms',
+    'Department': 'CSE',
+    'Target Year': '2nd Year',
+    'Target Semester': 'Semester 3 (Sem A - Odd)',
+    'Type': 'theory',
+    'Duration Minutes': 90,
+  },
+  {
+    'Course Code': 'CS-302-LAB',
+    'Course Name': 'Data Structures Lab',
+    'Department': 'CSE',
+    'Target Year': '2nd Year',
+    'Target Semester': 'Semester 3 (Sem A - Odd)',
+    'Type': 'lab_quiz',
+    'Duration Minutes': 60,
+  },
+]
+
+const roomSampleRows = [
+  {
+    'Room Code': 'LT-101',
+    'Room Name': 'Lecture Theatre 1',
+    'Building': 'Main Academic Block',
+    'Type': 'hall',
+    'Benches': 60,
+    'Seats per Bench': 2,
+    'Columns': 12,
+    'Teachers Required': 2,
+    'TAs Required': 1,
+    'Unavailable Dates / Hours': '2026-10-25 09:00-13:00',
+  },
+  {
+    'Room Code': '212',
+    'Room Name': 'Room 212',
+    'Building': 'Main Academic Block',
+    'Type': 'classroom',
+    'Benches': 30,
+    'Seats per Bench': 3,
+    'Columns': 10,
+    'Teachers Required': 1,
+    'TAs Required': 1,
+    'Unavailable Dates / Hours': '',
+  },
+  {
+    'Room Code': 'GCL',
+    'Room Name': 'Graphics & Computing Lab',
+    'Building': 'Computer Center',
+    'Type': 'lab',
+    'Benches': 60,
+    'Seats per Bench': 1,
+    'Columns': 10,
+    'Teachers Required': 1,
+    'TAs Required': 1,
+    'Unavailable Dates / Hours': '',
+  },
+]
+
 function ExcelImportPanel({
   title,
   sheetNames,
   columns,
+  sampleRows,
   onImport,
 }: {
   title: string
   sheetNames: string[]
   columns: string
+  sampleRows?: Record<string, unknown>[]
   onImport: (rows: ExcelRow[], mode: ExcelMergeMode) => string
 }) {
   const [file, setFile] = useState<File | null>(null)
   const [mode, setMode] = useState<ExcelMergeMode>('replace')
   const [message, setMessage] = useState('')
 
+  const handleDownloadTemplate = () => {
+    if (!sampleRows || sampleRows.length === 0) return
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.json_to_sheet(sampleRows)
+    XLSX.utils.book_append_sheet(wb, ws, sheetNames[0] || 'Sheet1')
+    XLSX.writeFile(wb, `${title.toLowerCase().replace(/\s+/g, '_')}_sample_template.xlsx`)
+  }
+
   const importFile = async () => {
     if (!file) return
     try {
       const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' })
-      const target = workbook.SheetNames.find((name) => sheetNames.includes(name.trim().toLowerCase()))
+      const lowerSheetNames = sheetNames.map((s) => s.trim().toLowerCase())
+      // 1. Exact match with any provided alias
+      let target = workbook.SheetNames.find((name) =>
+        lowerSheetNames.includes(name.trim().toLowerCase())
+      )
+      // 2. Substring match
       if (!target) {
-        setMessage(`Workbook needs a ${title} sheet.`)
+        target = workbook.SheetNames.find((name) =>
+          lowerSheetNames.some((s) => name.trim().toLowerCase().includes(s))
+        )
+      }
+      // 3. Fallback to first sheet in workbook
+      if (!target && workbook.SheetNames.length > 0) {
+        target = workbook.SheetNames[0]
+      }
+      if (!target) {
+        setMessage(`Workbook contains no usable sheets.`)
         return
       }
       const rows = XLSX.utils.sheet_to_json<ExcelRow>(workbook.Sheets[target], { defval: '' })
       if (!rows.length) {
-        setMessage(`No ${title.toLowerCase()} rows found in that sheet.`)
+        setMessage(`No ${title.toLowerCase()} rows found in sheet "${target}".`)
         return
       }
       setMessage(onImport(rows, mode))
@@ -137,25 +290,54 @@ function ExcelImportPanel({
   return (
     <div className="rounded-xl border border-sky-200 bg-sky-50/70 p-4">
       <div className="flex flex-wrap items-center gap-3">
-        <span className="text-xs font-bold uppercase tracking-wider text-sky-900">Import {title} from Excel</span>
-        <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-sky-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-sky-50">
+        <span className="text-xs font-bold uppercase tracking-wider text-sky-900">
+          Import {title} from Excel
+        </span>
+        <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-sky-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-sky-50 shadow-2xs">
           <Upload className="size-4" />
           {file?.name || 'Choose .xlsx / .xls'}
-          <input type="file" accept=".xlsx,.xls" className="sr-only" onChange={(event) => {
-            setFile(event.target.files?.[0] || null)
-            setMessage('')
-          }} />
+          <input
+            type="file"
+            accept=".xlsx,.xls"
+            className="sr-only"
+            onChange={(event) => {
+              setFile(event.target.files?.[0] || null)
+              setMessage('')
+            }}
+          />
         </label>
-        <select aria-label={`${title} import mode`} value={mode} onChange={(event) => setMode(event.target.value as ExcelMergeMode)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
+        <select
+          aria-label={`${title} import mode`}
+          value={mode}
+          onChange={(event) => setMode(event.target.value as ExcelMergeMode)}
+          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 shadow-2xs"
+        >
           <option value="replace">Replace current {title.toLowerCase()}</option>
           <option value="merge_unique">Add and remove duplicates</option>
           <option value="merge_all">Add and keep duplicates</option>
         </select>
-        <button onClick={importFile} disabled={!file} className="inline-flex items-center gap-1.5 rounded-lg bg-sky-700 px-3 py-2 text-xs font-bold text-white hover:bg-sky-800 disabled:cursor-not-allowed disabled:opacity-50">
+        <button
+          onClick={importFile}
+          disabled={!file}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-sky-700 px-3 py-2 text-xs font-bold text-white hover:bg-sky-800 disabled:cursor-not-allowed disabled:opacity-50 shadow-2xs"
+        >
           <Upload className="size-3.5" /> Import {title}
         </button>
+        {sampleRows && sampleRows.length > 0 && (
+          <button
+            type="button"
+            onClick={handleDownloadTemplate}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-sky-300 bg-white px-2.5 py-2 text-xs font-semibold text-sky-800 hover:bg-sky-100/70 shadow-2xs"
+            title="Download an Excel template with expected headers and sample rows"
+          >
+            <Download className="size-3.5 text-sky-600" />
+            Download Sample Template (.xlsx)
+          </button>
+        )}
       </div>
-      <p className="mt-2 text-[11px] text-slate-500">Sheet: {sheetNames[0]} · Columns: {columns}</p>
+      <p className="mt-2 text-[11px] text-slate-500">
+        Sheet: {sheetNames[0]} (or default Sheet1) · Columns: {columns}
+      </p>
       {message && <p role="status" className="mt-2 text-xs font-medium text-sky-900">{message}</p>}
     </div>
   )
@@ -170,6 +352,8 @@ interface InputsManagementViewProps {
   setRooms: React.Dispatch<React.SetStateAction<Room[]>>
   teachers: Teacher[]
   setTeachers: React.Dispatch<React.SetStateAction<Teacher[]>>
+  teachingAssistants: Teacher[]
+  setTeachingAssistants: React.Dispatch<React.SetStateAction<Teacher[]>>
   config: ExamSessionConfig
   setConfig: React.Dispatch<React.SetStateAction<ExamSessionConfig>>
   onSaveAndRerun: () => void
@@ -184,6 +368,8 @@ export function InputsManagementView({
   setRooms,
   teachers,
   setTeachers,
+  teachingAssistants,
+  setTeachingAssistants,
   config,
   setConfig,
   onSaveAndRerun,
@@ -216,6 +402,9 @@ export function InputsManagementView({
     courses: true,
     rooms: true,
     teachers: true,
+    tas: true,
+    timetableSuspension: true,
+    courseOverrides: true,
     fixedSlots: true,
   })
 
@@ -414,6 +603,8 @@ export function InputsManagementView({
     totalBenches: 12,
     benchCapacity: 2,
     columns: 2,
+    teachersRequired: 1,
+    teachingAssistantsRequired: 0,
     invigilatorsRequired: 1,
     allowSameCourseOnBench: false,
     included: true,
@@ -421,6 +612,8 @@ export function InputsManagementView({
 
   const handleAddRoom = () => {
     if (!newRoom.name || !newRoom.code) return
+    const teachersReq = Number(newRoom.teachersRequired) || 1
+    const tasReq = Number(newRoom.teachingAssistantsRequired) || 0
     const added: Room = {
       id: `r_${Date.now()}`,
       name: newRoom.name,
@@ -430,7 +623,9 @@ export function InputsManagementView({
       totalBenches: Number(newRoom.totalBenches) || 12,
       benchCapacity: Number(newRoom.benchCapacity) || 2,
       columns: Number(newRoom.columns) || 2,
-      invigilatorsRequired: Number(newRoom.invigilatorsRequired) || 1,
+      teachersRequired: teachersReq,
+      teachingAssistantsRequired: tasReq,
+      invigilatorsRequired: teachersReq + tasReq,
       allowSameCourseOnBench: newRoom.allowSameCourseOnBench || false,
       included: true,
     }
@@ -443,6 +638,8 @@ export function InputsManagementView({
       totalBenches: 12,
       benchCapacity: 2,
       columns: 2,
+      teachersRequired: 1,
+      teachingAssistantsRequired: 0,
       invigilatorsRequired: 1,
       allowSameCourseOnBench: false,
       included: true,
@@ -483,14 +680,17 @@ export function InputsManagementView({
 
   const importStudentRows = (rows: ExcelRow[], mode: ExcelMergeMode) => {
     const incoming: Student[] = rows
-      .filter((row) => getExcelValue(row, 'name', 'full name', 'student name') && getExcelValue(row, 'rollNo', 'roll number', 'roll', 'enrollment no', 'enrollment number'))
+      .filter((row) => 
+        getExcelValue(row, 'name', 'full name', 'student name', 'student', 'candidate name', 'name of student') && 
+        getExcelValue(row, 'rollNo', 'roll number', 'roll', 'enrollment no', 'enrollment number', 'rollno', 'reg no', 'regno', 'registration no', 'enrollment', 'id')
+      )
       .map((row, index) => {
-        const semester = normalizeSemester(getExcelValue(row, 'semester', 'sem', 'target semester', 'target sem'))
-        const explicitSection = getExcelValue(row, 'batch', 'section', 'sec')
+        const semester = normalizeSemester(getExcelValue(row, 'semester', 'sem', 'target semester', 'target sem', 'current semester', 'term'))
+        const explicitSection = getExcelValue(row, 'batch', 'section', 'sec', 'group', 'class section')
         const semNumber = Number(semester.match(/\d+/)?.[0] || 1)
-        const explicitYear = getExcelValue(row, 'year', 'academic year', 'current year')
-        const rollNo = getExcelValue(row, 'rollNo', 'roll number', 'roll', 'enrollment no', 'enrollment number')
-        const branchVal = getExcelValue(row, 'branch', 'department', 'dept', 'stream') || 'CSE'
+        const explicitYear = getExcelValue(row, 'year', 'academic year', 'current year', 'class year', 'yr')
+        const rollNo = getExcelValue(row, 'rollNo', 'roll number', 'roll', 'enrollment no', 'enrollment number', 'rollno', 'reg no', 'regno', 'registration no', 'id')
+        const branchVal = getExcelValue(row, 'branch', 'department', 'dept', 'stream', 'program', 'discipline') || 'CSE'
 
         // Derive academic year if not explicitly stated from semester
         let year: AcademicYear = '1st Year'
@@ -506,15 +706,34 @@ export function InputsManagementView({
           year = '4th Year'
         }
 
+        const enrolledRaw = getExcelValue(
+          row,
+          'enrolledCourseCodes',
+          'enrolled courses',
+          'course codes',
+          'courses',
+          'subjects',
+          'papers',
+          'enrolled subjects',
+          'subject codes',
+          'registered courses'
+        )
+
         return {
           id: `s_excel_${Date.now()}_${index}`,
-          name: getExcelValue(row, 'name', 'full name', 'student name'),
+          name: getExcelValue(row, 'name', 'full name', 'student name', 'student', 'candidate name', 'name of student'),
           rollNo,
           year,
           semester,
           branch: branchVal,
-          batch: explicitSection ? (explicitSection.toLowerCase().includes('section') ? explicitSection : `Section ${explicitSection.toUpperCase()}`) : `Section ${semNumber % 2 === 1 ? 'A' : 'B'}`,
-          enrolledCourseCodes: getExcelValue(row, 'enrolledCourseCodes', 'enrolled courses', 'course codes', 'courses', 'subjects').split(/[,;|]/).map((code) => code.trim().toUpperCase()).filter(Boolean),
+          batch: explicitSection
+            ? explicitSection.toLowerCase().includes('section')
+              ? explicitSection
+              : `Section ${explicitSection.toUpperCase()}`
+            : `Section ${semNumber % 2 === 1 ? 'A' : 'B'}`,
+          enrolledCourseCodes: enrolledRaw
+            ? enrolledRaw.split(/[,;|]/).map((code) => code.trim().toUpperCase()).filter(Boolean)
+            : [],
           included: true,
         }
       })
@@ -528,11 +747,14 @@ export function InputsManagementView({
 
   const importCourseRows = (rows: ExcelRow[], mode: ExcelMergeMode) => {
     const incoming: Course[] = rows
-      .filter((row) => getExcelValue(row, 'code', 'course code', 'subject code', 'paper code') && getExcelValue(row, 'name', 'course name', 'subject name', 'paper title', 'title'))
+      .filter((row) => 
+        getExcelValue(row, 'code', 'course code', 'subject code', 'paper code', 'sub code', 'course_code', 'subject_code') && 
+        getExcelValue(row, 'name', 'course name', 'subject name', 'paper title', 'title', 'subject', 'paper', 'course_name')
+      )
       .map((row, index) => {
-        const semester = normalizeSemester(getExcelValue(row, 'semester', 'sem', 'target semester', 'target sem'))
+        const semester = normalizeSemester(getExcelValue(row, 'semester', 'sem', 'target semester', 'target sem', 'term'))
         const semNumber = Number(semester.match(/\d+/)?.[0] || 1)
-        const explicitYear = getExcelValue(row, 'year', 'target year', 'academic year')
+        const explicitYear = getExcelValue(row, 'year', 'target year', 'academic year', 'class year')
 
         let year: AcademicYear = '1st Year'
         if (explicitYear) {
@@ -547,10 +769,12 @@ export function InputsManagementView({
           year = '4th Year'
         }
 
-        const rawType = getExcelValue(row, 'type', 'course type', 'category').toLowerCase()
-        const code = getExcelValue(row, 'code', 'course code', 'subject code', 'paper code').toUpperCase()
-        const name = getExcelValue(row, 'name', 'course name', 'subject name', 'paper title', 'title')
+        const rawType = getExcelValue(row, 'type', 'course type', 'category', 'practical', 'theory', 'lab', 'paper type').toLowerCase()
+        const code = getExcelValue(row, 'code', 'course code', 'subject code', 'paper code', 'sub code', 'course_code', 'subject_code').toUpperCase()
+        const name = getExcelValue(row, 'name', 'course name', 'subject name', 'paper title', 'title', 'subject', 'paper', 'course_name')
         const isLab = rawType === 'lab_quiz' || rawType.includes('lab') || code.includes('-LAB') || name.toLowerCase().includes('lab')
+        const rawDuration = Number(getExcelValue(row, 'durationMinutes', 'duration minutes', 'duration', 'time', 'exam duration', 'minutes'))
+        const durationMinutes = !isNaN(rawDuration) && rawDuration > 0 ? rawDuration : (isLab ? 60 : 90)
 
         return {
           id: `c_excel_${Date.now()}_${index}`,
@@ -558,8 +782,9 @@ export function InputsManagementView({
           name,
           year,
           semester,
-          department: getExcelValue(row, 'department', 'dept', 'branch') || 'CSE',
+          department: getExcelValue(row, 'department', 'dept', 'branch', 'stream') || 'CSE',
           type: isLab ? 'lab_quiz' : 'theory',
+          durationMinutes,
           included: true,
         }
       })
@@ -574,20 +799,49 @@ export function InputsManagementView({
 
   const importRoomRows = (rows: ExcelRow[], mode: ExcelMergeMode) => {
     const incoming: Room[] = rows
-      .filter((row) => getExcelValue(row, 'code', 'room code') && getExcelValue(row, 'name', 'room name'))
+      .filter((row) => 
+        getExcelValue(row, 'code', 'room code', 'hall code', 'lab code', 'room no', 'room number', 'room_code', 'venue code') && 
+        getExcelValue(row, 'name', 'room name', 'hall name', 'lab name', 'room', 'hall', 'venue', 'room_name')
+      )
       .map((row, index) => {
-        const type = getExcelValue(row, 'type', 'room type').toLowerCase()
+        const typeRaw = getExcelValue(row, 'type', 'room type', 'category', 'venue type', 'kind').toLowerCase()
+        const rawTeachers = Number(getExcelValue(row, 'teachersRequired', 'teachers required', 'faculty required', 'teachers', 'faculty', 'teachers req', 'teacher'))
+        const rawTAs = Number(getExcelValue(row, 'teachingAssistantsRequired', 'teaching assistants required', 'tas required', 'tas', 'ta required', 'ta', 'assistants required', 'assistants'))
+        const rawInvigilators = Number(getExcelValue(row, 'invigilatorsRequired', 'invigilators required', 'invigilators', 'total staff', 'staff required'))
+        const teachersRequired = !isNaN(rawTeachers) && rawTeachers > 0 ? rawTeachers : (!isNaN(rawInvigilators) && rawInvigilators > 0 ? rawInvigilators : 1)
+        const teachingAssistantsRequired = !isNaN(rawTAs) && rawTAs >= 0 ? rawTAs : 0
+
+        // Parse room blackout / unavailability dates and hours from Excel if provided
+        const rawUnavail = getExcelValue(
+          row,
+          'unavailableDates',
+          'unavailable dates',
+          'unavailable hours',
+          'unavailability',
+          'unavailability slots',
+          'blackout',
+          'blackout dates',
+          'blackout hours',
+          'unavailable',
+          'blackout windows'
+        )
+        const { slots: unavailSlots, dates: unavailDates } = parseUnavailabilityString(rawUnavail)
+
         return {
           id: `r_excel_${Date.now()}_${index}`,
-          code: getExcelValue(row, 'code', 'room code').toUpperCase(),
-          name: getExcelValue(row, 'name', 'room name'),
-          building: getExcelValue(row, 'building', 'location') || 'Main Academic Block',
-          type: (['hall', 'classroom', 'lab'].includes(type) ? type : 'classroom') as RoomType,
-          totalBenches: Number(getExcelValue(row, 'totalBenches', 'benches')) || 12,
-          benchCapacity: Number(getExcelValue(row, 'benchCapacity', 'seats per bench')) || 2,
-          columns: Number(getExcelValue(row, 'columns')) || 2,
-          invigilatorsRequired: Number(getExcelValue(row, 'invigilatorsRequired', 'invigilators required')) || 1,
-          allowSameCourseOnBench: getExcelValue(row, 'allowSameCourseOnBench').toLowerCase() === 'true',
+          code: getExcelValue(row, 'code', 'room code', 'hall code', 'lab code', 'room no', 'room number', 'room_code').toUpperCase(),
+          name: getExcelValue(row, 'name', 'room name', 'hall name', 'lab name', 'room', 'hall', 'venue'),
+          building: getExcelValue(row, 'building', 'location', 'block', 'floor', 'building name') || 'Main Academic Block',
+          type: (['hall', 'classroom', 'lab'].includes(typeRaw) ? typeRaw : (typeRaw.includes('lab') ? 'lab' : typeRaw.includes('hall') ? 'hall' : 'classroom')) as RoomType,
+          totalBenches: Number(getExcelValue(row, 'totalBenches', 'total benches', 'benches', 'workstations', 'capacity', 'desks', 'tables', 'terminals')) || 12,
+          benchCapacity: Number(getExcelValue(row, 'benchCapacity', 'seats per bench', 'seats per desk', 'capacity per bench', 'bench capacity', 'seats', 'capacity')) || 2,
+          columns: Number(getExcelValue(row, 'columns', 'cols', 'layout columns')) || 2,
+          teachersRequired,
+          teachingAssistantsRequired,
+          invigilatorsRequired: teachersRequired + teachingAssistantsRequired,
+          allowSameCourseOnBench: getExcelValue(row, 'allowSameCourseOnBench', 'allow same course on bench', 'same course on bench').toLowerCase() === 'true',
+          unavailableDates: unavailDates.length > 0 ? unavailDates : undefined,
+          unavailabilitySlots: unavailSlots.length > 0 ? unavailSlots : undefined,
           included: true,
         }
       })
@@ -599,14 +853,14 @@ export function InputsManagementView({
 
   const importTeacherRows = (rows: ExcelRow[], mode: ExcelMergeMode) => {
     const incoming: Teacher[] = rows
-      .filter((row) => getExcelValue(row, 'name', 'teacher name', 'faculty name'))
+      .filter((row) => getExcelValue(row, 'name', 'teacher name', 'faculty name', 'faculty', 'teacher', 'professor', 'prof name', 'full name', 'staff name'))
       .map((row, index) => ({
         id: `t_excel_${Date.now()}_${index}`,
-        name: getExcelValue(row, 'name', 'teacher name', 'faculty name'),
-        designation: getExcelValue(row, 'designation', 'title') || 'Assistant Professor',
-        department: getExcelValue(row, 'department', 'dept') || 'CSE',
-        priority: Number(getExcelValue(row, 'priority', 'priority rank')) || 1,
-        maxDuties: Number(getExcelValue(row, 'maxDuties', 'max duties')) || 6,
+        name: getExcelValue(row, 'name', 'teacher name', 'faculty name', 'faculty', 'teacher', 'professor', 'prof name', 'full name'),
+        designation: getExcelValue(row, 'designation', 'title', 'role', 'position', 'desig') || 'Assistant Professor',
+        department: getExcelValue(row, 'department', 'dept', 'branch') || 'CSE',
+        priority: Number(getExcelValue(row, 'priority', 'priority rank', 'rank', 'seniority', 'level')) || 1,
+        maxDuties: Number(getExcelValue(row, 'maxDuties', 'max duties', 'duties', 'max duty', 'duty limit')) || 6,
         included: true,
       }))
     if (!incoming.length) return 'No valid faculty rows found. Faculty name is required.'
@@ -635,11 +889,13 @@ export function InputsManagementView({
       setCourses(defaultQuizCourses.map((c) => ({ ...c, included: true })))
       setRooms(defaultQuizRooms.map((r) => ({ ...r, included: true })))
       setTeachers(defaultQuizTeachers.map((t) => ({ ...t, included: true })))
+      setTeachingAssistants(defaultQuizTeachingAssistants.map((ta) => ({ ...ta, included: true })))
     } else {
       setStudents(defaultMstStudents.map((s) => ({ ...s, included: true })))
       setCourses(defaultMstCourses.map((c) => ({ ...c, included: true })))
       setRooms(defaultMstRooms.map((r) => ({ ...r, included: true })))
       setTeachers(defaultMstTeachers.map((t) => ({ ...t, included: true })))
+      setTeachingAssistants(defaultMstTeachingAssistants.map((ta) => ({ ...ta, included: true })))
     }
   }
 
@@ -838,11 +1094,14 @@ export function InputsManagementView({
           { id: 'sec-students', label: `3. Students (${activeStudentsCount}/${students.length} active)`, icon: GraduationCap },
           { id: 'sec-rooms', label: `4. Rooms & Labs (${activeRoomsCount}/${rooms.length} active)`, icon: Building2 },
           { id: 'sec-teachers', label: `5. Faculty (${activeTeachersCount}/${teachers.length} active)`, icon: UserCheck },
+          { id: 'sec-tas', label: `6. Teaching Assistants (${teachingAssistants.filter((ta) => ta.included !== false).length}/${teachingAssistants.length} active)`, icon: Users },
+          { id: 'sec-routine-timetable', label: `7. Routine Timetable & Class Suspension (${(config.teacherTimetableEntries || []).length} classes)`, icon: Clock3 },
+          { id: 'sec-course-overrides', label: `8. Course Student Overrides (${Object.keys(config.courseStudentOverrides || {}).length} active)`, icon: Layers },
           ...(config.examType !== 'quiz'
             ? [
                 {
                   id: 'sec-fixed-slots',
-                  label: `6. Pin Courses to Slots (${Object.keys(config.fixedCourseSlots || {}).length} pinned)`,
+                  label: `9. Pin Courses to Slots (${Object.keys(config.fixedCourseSlots || {}).length} pinned)`,
                   icon: Pin,
                 },
               ]
@@ -1500,7 +1759,13 @@ export function InputsManagementView({
 
         {openSections.courses && (
           <div className="mt-6 flex flex-col gap-6">
-            <ExcelImportPanel title="Courses" sheetNames={['courses', 'course']} columns="Course Code, Course Name, Department, Target Year, Target Semester" onImport={importCourseRows} />
+            <ExcelImportPanel
+              title="Courses"
+              sheetNames={['courses', 'course', 'subjects', 'subject', 'sheet1']}
+              columns="Course Code, Course Name, Department, Target Year, Target Semester, Type, Duration"
+              sampleRows={courseSampleRows}
+              onImport={importCourseRows}
+            />
             {/* Quick Add Course Form */}
             <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
@@ -1975,7 +2240,13 @@ export function InputsManagementView({
 
         {openSections.students && (
           <div className="mt-6 flex flex-col gap-6">
-            <ExcelImportPanel title="Students" sheetNames={['students', 'student']} columns="Full Name, Roll No, Year, Semester, Branch, Batch, Course Codes" onImport={importStudentRows} />
+            <ExcelImportPanel
+              title="Students"
+              sheetNames={['students', 'student', 'pupils', 'sheet1']}
+              columns="Full Name, Roll No, Year, Semester, Branch, Batch, Course Codes"
+              sampleRows={studentSampleRows}
+              onImport={importStudentRows}
+            />
             {/* Quick Add Student Form */}
             <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
@@ -2386,13 +2657,19 @@ export function InputsManagementView({
 
         {openSections.rooms && (
           <div className="mt-6 flex flex-col gap-6">
-            <ExcelImportPanel title="Rooms" sheetNames={['rooms', 'room', 'labs']} columns="Room Code, Room Name, Building, Type, Benches, Seats per Bench, Columns" onImport={importRoomRows} />
+            <ExcelImportPanel
+              title="Rooms"
+              sheetNames={['rooms', 'room', 'labs', 'sheet1']}
+              columns="Room Code, Room Name, Building, Type, Benches, Seats per Bench, Columns, Teachers Required, TAs Required, Unavailable Dates / Hours"
+              sampleRows={roomSampleRows}
+              onImport={importRoomRows}
+            />
             {/* Quick Add Room Form */}
             <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
                 Add Exam Room / Lab
               </span>
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7">
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-8">
                 <div>
                   <span className="text-[10px] text-slate-500 font-semibold">Room Code</span>
                   <input
@@ -2400,7 +2677,7 @@ export function InputsManagementView({
                     placeholder="e.g. LH-101"
                     value={newRoom.code}
                     onChange={(e) => setNewRoom({ ...newRoom, code: e.target.value })}
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 font-bold"
                   />
                 </div>
                 <div>
@@ -2424,7 +2701,7 @@ export function InputsManagementView({
                   />
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-500 font-semibold">Benches</span>
+                  <span className="text-[10px] text-slate-500 font-semibold">Benches / Workstations</span>
                   <input
                     type="number"
                     value={newRoom.totalBenches}
@@ -2442,30 +2719,40 @@ export function InputsManagementView({
                   />
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-500 font-semibold">Columns</span>
+                  <span className="text-[10px] text-slate-500 font-semibold flex items-center gap-1">
+                    <UserCheck className="size-3 text-emerald-600" />
+                    Teachers Req.
+                  </span>
                   <input
                     type="number"
-                    value={newRoom.columns}
-                    onChange={(e) => setNewRoom({ ...newRoom, columns: Number(e.target.value) })}
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
+                    min={0}
+                    max={6}
+                    value={newRoom.teachersRequired ?? 1}
+                    onChange={(e) => setNewRoom({ ...newRoom, teachersRequired: Number(e.target.value) })}
+                    className="mt-1 w-full rounded-lg border border-emerald-300 bg-emerald-50/40 px-3 py-2 text-xs font-bold text-emerald-800 focus:outline-none focus:border-emerald-500"
+                    title="Number of faculty teachers required in this room"
                   />
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-500 font-semibold">Invigilators Req.</span>
+                  <span className="text-[10px] text-slate-500 font-semibold flex items-center gap-1">
+                    <GraduationCap className="size-3 text-cyan-600" />
+                    TAs Req.
+                  </span>
                   <input
                     type="number"
-                    min={1}
+                    min={0}
                     max={6}
-                    value={newRoom.invigilatorsRequired || 1}
-                    onChange={(e) => setNewRoom({ ...newRoom, invigilatorsRequired: Number(e.target.value) })}
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 font-bold text-emerald-700"
+                    value={newRoom.teachingAssistantsRequired ?? 0}
+                    onChange={(e) => setNewRoom({ ...newRoom, teachingAssistantsRequired: Number(e.target.value) })}
+                    className="mt-1 w-full rounded-lg border border-cyan-300 bg-cyan-50/40 px-3 py-2 text-xs font-bold text-cyan-800 focus:outline-none focus:border-cyan-500"
+                    title="Number of teaching assistants required in this room"
                   />
                 </div>
-                <div className="flex items-end sm:col-span-2 lg:col-span-1">
+                <div className="flex items-end">
                   <button
                     onClick={handleAddRoom}
                     disabled={!newRoom.name || !newRoom.code}
-                    className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-600 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                    className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-600 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors shadow-2xs"
                   >
                     <Plus className="size-4" />
                     Add Room
@@ -2554,7 +2841,7 @@ export function InputsManagementView({
                         </p>
                       </div>
 
-                      <div className="mt-4 border-t border-slate-100 pt-3 grid grid-cols-4 gap-2 text-center">
+                      <div className="mt-4 border-t border-slate-100 pt-3 grid grid-cols-2 sm:grid-cols-5 gap-2 text-center">
                         <div className="rounded-lg bg-slate-50 p-2">
                           <span className="block text-[10px] text-slate-500">
                             {r.type === 'lab' ? 'Workstations' : 'Benches'}
@@ -2580,27 +2867,64 @@ export function InputsManagementView({
                           <span className="block text-[10px] text-slate-500">Seats/Desk</span>
                           <span className="font-bold text-slate-800">{r.benchCapacity}</span>
                         </div>
-                        <div className="rounded-lg bg-slate-50 p-2">
-                          <span className="block text-[10px] text-slate-500">Invigilators</span>
+                        <div className="rounded-lg bg-emerald-50/70 border border-emerald-200 p-2">
+                          <span className="block text-[10px] font-semibold text-emerald-800 flex items-center justify-center gap-0.5">
+                            <UserCheck className="size-2.5 text-emerald-600" />
+                            Teachers
+                          </span>
                           <input
                             type="number"
-                            min={1}
+                            min={0}
                             max={6}
-                            value={r.invigilatorsRequired || 1}
+                            value={r.teachersRequired ?? r.invigilatorsRequired ?? 1}
                             onChange={(e) => {
-                              const val = Number(e.target.value)
+                              const val = Math.max(0, Number(e.target.value))
                               setRooms((prev) =>
                                 prev.map((item) =>
-                                  item.id === r.id ? { ...item, invigilatorsRequired: val } : item
+                                  item.id === r.id
+                                    ? {
+                                        ...item,
+                                        teachersRequired: val,
+                                        invigilatorsRequired: val + (item.teachingAssistantsRequired ?? 0),
+                                      }
+                                    : item
                                 )
                               )
                             }}
-                            className="w-10 rounded border border-slate-300 bg-white px-1 py-0.5 text-xs font-bold text-emerald-700 text-center mx-auto block focus:border-emerald-500 focus:outline-none"
-                            title="Number of invigilators / teachers required in this room"
+                            className="w-10 rounded border border-emerald-300 bg-white px-1 py-0.5 text-xs font-bold text-emerald-700 text-center mx-auto block focus:border-emerald-500 focus:outline-none"
+                            title="Number of faculty teachers required for this room"
+                          />
+                        </div>
+                        <div className="rounded-lg bg-cyan-50/70 border border-cyan-200 p-2">
+                          <span className="block text-[10px] font-semibold text-cyan-800 flex items-center justify-center gap-0.5">
+                            <GraduationCap className="size-2.5 text-cyan-600" />
+                            TAs
+                          </span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={6}
+                            value={r.teachingAssistantsRequired ?? 0}
+                            onChange={(e) => {
+                              const val = Math.max(0, Number(e.target.value))
+                              setRooms((prev) =>
+                                prev.map((item) =>
+                                  item.id === r.id
+                                    ? {
+                                        ...item,
+                                        teachingAssistantsRequired: val,
+                                        invigilatorsRequired: (item.teachersRequired ?? 1) + val,
+                                      }
+                                    : item
+                                )
+                              )
+                            }}
+                            className="w-10 rounded border border-cyan-300 bg-white px-1 py-0.5 text-xs font-bold text-cyan-700 text-center mx-auto block focus:border-cyan-500 focus:outline-none"
+                            title="Number of teaching assistants required for this room"
                           />
                         </div>
                         <div
-                          className={`rounded-lg p-2 border ${
+                          className={`rounded-lg p-2 border col-span-2 sm:col-span-1 ${
                             isIncluded
                               ? 'bg-emerald-50 border-emerald-100 text-emerald-700'
                               : 'bg-slate-100 border-slate-200 text-slate-400'
@@ -2610,20 +2934,34 @@ export function InputsManagementView({
                           <span className="font-bold">{capacity}</span>
                         </div>
                       </div>
-                      
-                      <div className="mt-3">
-                        <span className="block text-[10px] text-slate-500 font-semibold mb-1">Unavailable Dates (YYYY-MM-DD, comma separated)</span>
-                        <input
-                          type="text"
-                          placeholder="e.g. 2024-05-15, 2024-05-16"
-                          value={r.unavailableDates?.join(', ') || ''}
-                          onChange={(e) => {
-                            const val = e.target.value.split(',').map(d => d.trim()).filter(Boolean)
-                            setRooms(prev => prev.map(item => item.id === r.id ? { ...item, unavailableDates: val.length > 0 ? val : undefined } : item))
-                          }}
-                          className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800 focus:border-emerald-500 focus:outline-none placeholder:text-slate-300"
-                        />
+
+                      <div className="mt-2 flex items-center justify-between px-1 text-[11px] text-slate-500">
+                        <span className="flex items-center gap-1 font-medium">
+                          Staff per exam:
+                          <span className="font-bold text-emerald-700">
+                            {r.teachersRequired ?? r.invigilatorsRequired ?? 1} Faculty
+                          </span>
+                          <span>+</span>
+                          <span className="font-bold text-cyan-700">
+                            {r.teachingAssistantsRequired ?? 0} TA{r.teachingAssistantsRequired === 1 ? '' : 's'}
+                          </span>
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          Total {(r.teachersRequired ?? r.invigilatorsRequired ?? 1) + (r.teachingAssistantsRequired ?? 0)} Invigilator{((r.teachersRequired ?? r.invigilatorsRequired ?? 1) + (r.teachingAssistantsRequired ?? 0)) === 1 ? '' : 's'}
+                        </span>
                       </div>
+                      
+                      {/* Unavailable Dates and Hours / Blackout Window Picker */}
+                      <RoomUnavailabilityPicker
+                        room={r}
+                        onUpdate={(updated) => {
+                          setRooms((prev) =>
+                            prev.map((item) =>
+                              item.id === r.id ? { ...item, ...updated } : item
+                            )
+                          )
+                        }}
+                      />
                     </div>
                   )
                 })}
@@ -2634,230 +2972,55 @@ export function InputsManagementView({
       </section>
 
       {/* ========================================================================= */}
-      {/* SECTION 5: FACULTY & INVIGILATOR PRIORITIES WITH INCLUDE IN BUILD CHECKBOX */}
+      {/* SECTION 5: FACULTY REGISTRY COMPONENT */}
       {/* ========================================================================= */}
-      <section id="sec-teachers" className="scroll-mt-36 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-200 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-purple-50 text-purple-600 border border-purple-100">
-              <UserCheck className="size-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-lg font-bold text-slate-900">5. Faculty Registry & Priority Dispersal</h3>
-                <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[11px] font-bold text-purple-800">
-                  {activeTeachersCount} of {teachers.length} active in duty roster
-                </span>
-              </div>
-              <p className="text-xs text-slate-500">
-                {teachers.length} invigilators registered. Toggle "Include in Build" to assign or exempt individual faculty members.
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() => toggleSection('teachers')}
-            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 transition-colors"
-          >
-            {openSections.teachers ? <ChevronUp className="size-5" /> : <ChevronDown className="size-5" />}
-          </button>
-        </div>
-
-        {openSections.teachers && (
-          <div className="mt-6 flex flex-col gap-6">
-            <ExcelImportPanel title="Faculty" sheetNames={['faculty', 'teachers', 'teacher']} columns="Faculty Name, Designation, Department, Priority Rank, Max Duties" onImport={importTeacherRows} />
-            {/* Quick Add Teacher Form */}
-            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                Add Faculty / Invigilator
-              </span>
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                <div>
-                  <span className="text-[10px] text-slate-500 font-semibold">Teacher Name</span>
-                  <input
-                    type="text"
-                    placeholder="e.g. Dr. Urjita Thakar"
-                    value={newTeacher.name}
-                    onChange={(e) => setNewTeacher({ ...newTeacher, name: e.target.value })}
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-500 font-semibold">Designation</span>
-                  <input
-                    type="text"
-                    placeholder="e.g. Professor & Head"
-                    value={newTeacher.designation}
-                    onChange={(e) => setNewTeacher({ ...newTeacher, designation: e.target.value })}
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-500 font-semibold">Department</span>
-                  <input
-                    type="text"
-                    placeholder="e.g. CSE"
-                    value={newTeacher.department}
-                    onChange={(e) => setNewTeacher({ ...newTeacher, department: e.target.value })}
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-500 font-semibold">Priority Rank (1 = Top)</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={10}
-                    value={newTeacher.priority}
-                    onChange={(e) => setNewTeacher({ ...newTeacher, priority: Number(e.target.value) })}
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-purple-500 font-bold"
-                  />
-                </div>
-                <div className="flex items-end">
-                  <button
-                    onClick={handleAddTeacher}
-                    disabled={!newTeacher.name}
-                    className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-purple-600 py-2 text-xs font-bold text-white hover:bg-purple-700 disabled:opacity-50 transition-colors"
-                  >
-                    <Plus className="size-4" />
-                    Add Faculty
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Teachers Table with Batch Toggles */}
-            <div>
-              <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-                <div className="relative w-full max-w-sm">
-                  <Search className="absolute left-3 top-2.5 size-4 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search faculty by name, department, designation..."
-                    value={teacherSearch}
-                    onChange={(e) => setTeacherSearch(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-4 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => toggleAllTeachers(true)}
-                    className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
-                  >
-                    <CheckSquare className="size-3.5 text-purple-600" />
-                    Include All Faculty
-                  </button>
-                  <button
-                    onClick={() => toggleAllTeachers(false)}
-                    className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
-                  >
-                    <Square className="size-3.5 text-slate-400" />
-                    Exclude All
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-3 max-h-[30rem] overflow-y-auto rounded-xl border border-slate-200 shadow-2xs">
-                <table className="w-full text-left text-xs">
-                  <thead className="sticky top-0 bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
-                    <tr>
-                      <th className="py-2.5 px-3 w-36">Include in Build</th>
-                      <th className="py-2.5 px-3">Faculty Name</th>
-                      <th className="py-2.5 px-3">Designation</th>
-                      <th className="py-2.5 px-3">Department</th>
-                      <th className="py-2.5 px-3 w-32">Priority Rank (Customizable)</th>
-                      <th className="py-2.5 px-3 w-28">Max Duties</th>
-                      <th className="py-2.5 px-3 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white">
-                    {filteredTeachers.map((t) => {
-                      const isIncluded = t.included !== false
-                      return (
-                        <tr
-                          key={t.id}
-                          className={`transition-colors ${
-                            isIncluded ? 'hover:bg-slate-50/80' : 'bg-slate-50/60 opacity-60'
-                          }`}
-                        >
-                          <td className="py-2.5 px-3">
-                            <label className="flex items-center gap-2 cursor-pointer select-none">
-                              <input
-                                type="checkbox"
-                                checked={isIncluded}
-                                onChange={() => toggleTeacherInclusion(t.id)}
-                                className="size-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
-                              />
-                              <span
-                                className={`text-[11px] font-bold ${
-                                  isIncluded ? 'text-purple-700' : 'text-slate-400'
-                                }`}
-                              >
-                                {isIncluded ? 'Included' : 'Excluded'}
-                              </span>
-                            </label>
-                          </td>
-                          <td className="py-2.5 px-3 font-semibold text-slate-900">
-                            {t.name}
-                            {!isIncluded && (
-                              <span className="ml-2 text-[10px] text-slate-400 font-normal italic">
-                                (Exempt from duties)
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-2.5 px-3 text-slate-600">
-                            <span className="rounded bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
-                              {t.designation || 'Faculty'}
-                            </span>
-                          </td>
-                          <td className="py-2.5 px-3 text-slate-600">{t.department}</td>
-                          <td className="py-2.5 px-3">
-                            <div className="flex items-center gap-1.5">
-                              <input
-                                type="number"
-                                min={1}
-                                max={10}
-                                value={t.priority}
-                                onChange={(e) => updateTeacherPriority(t.id, Number(e.target.value))}
-                                className="w-14 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-purple-700 text-center focus:border-purple-500 focus:outline-none"
-                              />
-                              <span className="text-[10px] text-slate-400">
-                                {t.priority === 1 ? '🌟 Rank 1' : `Rank ${t.priority}`}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="py-2.5 px-3">
-                            <input
-                              type="number"
-                              min={1}
-                              max={20}
-                              value={t.maxDuties}
-                              onChange={(e) => updateTeacherMaxDuties(t.id, Number(e.target.value))}
-                              className="w-14 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 text-center focus:border-purple-500 focus:outline-none"
-                            />
-                          </td>
-                          <td className="py-2.5 px-3 text-right">
-                            <button
-                              onClick={() => setTeachers((prev) => prev.filter((item) => item.id !== t.id))}
-                              className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors"
-                              title="Delete Faculty"
-                            >
-                              <Trash2 className="size-3.5" />
-                            </button>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-      </section>
+      <FacultyRegistry
+        teachers={teachers}
+        setTeachers={setTeachers}
+        isOpen={openSections.teachers}
+        onToggleOpen={() => toggleSection('teachers')}
+        sectionNumber="5"
+      />
 
       {/* ========================================================================= */}
-      {/* SECTION 6: PIN / FIX COURSES TO SLOTS (OPTIONAL, MST ONLY) */}
+      {/* SECTION 6: TEACHING ASSISTANT REGISTRY COMPONENT */}
+      {/* ========================================================================= */}
+      <TeachingAssistantRegistry
+        teachingAssistants={teachingAssistants}
+        setTeachingAssistants={setTeachingAssistants}
+        isOpen={openSections.tas}
+        onToggleOpen={() => toggleSection('tas')}
+        sectionNumber="6"
+      />
+
+      {/* ========================================================================= */}
+      {/* SECTION 7: FACULTY & TA ROUTINE TIMETABLE & SUSPENSION MATRIX */}
+      {/* ========================================================================= */}
+      <TeacherTimetableSuspensionSection
+        config={config}
+        setConfig={setConfig}
+        teachers={teachers}
+        teachingAssistants={teachingAssistants}
+        isOpen={openSections.timetableSuspension}
+        onToggleOpen={() => toggleSection('timetableSuspension')}
+        sectionNumber="7"
+      />
+
+      {/* ========================================================================= */}
+      {/* SECTION 8: COURSE-SPECIFIC STUDENT ENROLLMENT OVERRIDES */}
+      {/* ========================================================================= */}
+      <CourseStudentOverridesSection
+        courses={courses}
+        students={students}
+        config={config}
+        setConfig={setConfig}
+        isOpen={openSections.courseOverrides}
+        onToggleOpen={() => toggleSection('courseOverrides')}
+        sectionNumber="8"
+      />
+
+      {/* ========================================================================= */}
+      {/* SECTION 9: PIN / FIX COURSES TO SLOTS (OPTIONAL, MST ONLY) */}
       {/* ========================================================================= */}
       {config.examType !== 'quiz' && (
         <section id="sec-fixed-slots" className="scroll-mt-36 rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50/40 via-white to-white p-6 shadow-sm">
@@ -2869,7 +3032,7 @@ export function InputsManagementView({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-lg font-bold text-slate-900">
-                  6. Pin Courses to Exam Days & Slots
+                  9. Pin Courses to Exam Days & Slots
                 </h3>
                 <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-800 border border-amber-300">
                   Optional Pre-Assignment
@@ -3333,8 +3496,9 @@ export function InputsManagementView({
           <p className="text-xs text-blue-900 font-medium">
             Generating schedule using <span className="font-bold">{activeCoursesCount} courses</span>,{' '}
             <span className="font-bold">{activeStudentsCount} students</span>,{' '}
-            <span className="font-bold">{activeRoomsCount} rooms</span>, and{' '}
-            <span className="font-bold">{activeTeachersCount} invigilators</span>.
+            <span className="font-bold">{activeRoomsCount} rooms</span>,{' '}
+            <span className="font-bold">{activeTeachersCount} faculty</span>, and{' '}
+            <span className="font-bold">{teachingAssistants.filter((ta) => ta.included !== false).length} TAs</span>.
           </p>
         </div>
         <button

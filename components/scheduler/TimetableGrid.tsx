@@ -339,21 +339,33 @@ export function TimetableGrid({
                                 : r.invigilator
                                 ? [r.invigilator]
                                 : []
+                            const tas = r.teachingAssistants || []
 
                             return (
                               <div
                                 key={r.roomId}
-                                className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1 shadow-2xs text-[11px]"
+                                className="flex flex-col gap-1 rounded-lg border border-border bg-card p-2 shadow-2xs text-[11px]"
                               >
-                                <Building2 className="size-3 text-muted-foreground" />
-                                <span className="font-bold text-foreground">{r.roomName.split('(')[0]}</span>
-                                <span className="text-muted-foreground">·</span>
-                                <UserCheck className="size-3 text-emerald-600" />
-                                <span className="font-semibold text-emerald-700 dark:text-emerald-400">
-                                  {teachers.length > 0
-                                    ? teachers.map((t) => t.name).join(' & ')
-                                    : 'Unassigned'}
-                                </span>
+                                <div className="flex items-center gap-1.5 font-bold text-foreground">
+                                  <Building2 className="size-3 text-muted-foreground" />
+                                  <span>{r.roomName.split('(')[0]}</span>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <div className="flex items-center gap-1 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200/60">
+                                    <UserCheck className="size-2.5 text-emerald-600" />
+                                    <span>
+                                      {teachers.length > 0
+                                        ? teachers.map((t) => t.name).join(' & ')
+                                        : 'Teacher Unassigned'}
+                                    </span>
+                                  </div>
+                                  {tas.length > 0 && (
+                                    <div className="flex items-center gap-1 rounded bg-cyan-50 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-400 border border-cyan-200/60">
+                                      <GraduationCap className="size-2.5 text-cyan-600" />
+                                      <span>TA: {tas.map((ta) => ta.name).join(' & ')}</span>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             )
                           })}
@@ -519,24 +531,40 @@ export function TimetableGrid({
                       </span>
 
                       <div className="flex flex-col gap-2">
-                        {slot.roomAllocations.map((r) => (
-                          <div
-                            key={r.roomId}
-                            className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs"
-                          >
-                            <div>
-                              <p className="font-semibold text-foreground">
-                                {r.roomName.split('(')[0]}
-                              </p>
-                              <p className="text-[10px] text-muted-foreground">
-                                {r.invigilator ? r.invigilator.name : 'Unassigned'}
-                              </p>
+                        {slot.roomAllocations.map((r) => {
+                          const teachers =
+                            r.invigilators && r.invigilators.length > 0
+                              ? r.invigilators
+                              : r.invigilator
+                              ? [r.invigilator]
+                              : []
+                          const tas = r.teachingAssistants || []
+                          return (
+                            <div
+                              key={r.roomId}
+                              className="flex items-start justify-between rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs"
+                            >
+                              <div className="flex flex-col gap-0.5">
+                                <p className="font-semibold text-foreground">
+                                  {r.roomName.split('(')[0]}
+                                </p>
+                                <p className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                                  <UserCheck className="size-2.5 text-emerald-600" />
+                                  {teachers.length > 0 ? teachers.map((t) => t.name).join(' & ') : 'Faculty unassigned'}
+                                </p>
+                                {tas.length > 0 && (
+                                  <p className="text-[10px] font-medium text-cyan-700 dark:text-cyan-400 flex items-center gap-1">
+                                    <GraduationCap className="size-2.5 text-cyan-600" />
+                                    TA: {tas.map((ta) => ta.name).join(' & ')}
+                                  </p>
+                                )}
+                              </div>
+                              <span className="rounded bg-background px-1.5 py-0.5 text-[10px] font-bold text-foreground border border-border">
+                                {r.totalSeated} / {r.totalCapacity}
+                              </span>
                             </div>
-                            <span className="rounded bg-background px-1.5 py-0.5 text-[10px] font-bold text-foreground border border-border">
-                              {r.totalSeated} / {r.totalCapacity}
-                            </span>
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     </div>
                   </div>
